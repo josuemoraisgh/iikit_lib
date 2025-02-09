@@ -1,0 +1,3 @@
+https://community.platformio.org/t/esp32-pio-unified-debugger/4541/20
+https://www.manualdomaker.com/article/como-depurar-com-o-esp-prog/
+https://www.youtube.com/watch?v=UrW6VGjBV8g

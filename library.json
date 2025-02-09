@@ -1,0 +1,48 @@
+{
+    "name": "IIkit_lib",
+    "version": "0.0.1",
+    "keywords": "kit,instrumentacao,esp,esp8266,esp32,espressif8266,espressif32,nodemcu,wemos,arduino",
+    "description": "ESP board for Instrumentacao",
+    "authors": [
+        {
+            "name": "josuemoraisgh",
+            "url": "https://github.com/josuemoraisgh"
+        }
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/josuemoraisgh/IIkit.git"
+    },
+    "frameworks": "arduino",
+    "platforms": "espressif32",
+    "dependencies": [
+        {
+            "name": "Adafruit ADS1X15",
+            "owner": "adafruit",
+            "version": "^2.5.0"
+        },
+        {
+            "name": "Adafruit SSD1306",
+            "owner": "adafruit",
+            "version": "^2.5.13"
+        },
+        {
+            "name": "Adafruit GFX Library",
+            "owner": "adafruit",
+            "version": "^1.11.7"
+        },
+        {
+            "name": "DacESP32",
+            "owner": "yellobyte",
+            "version": "^1.1.1"
+        },
+        {
+            "name": "ESP Telnet",
+            "owner": "lennarthennigs",
+            "version": "^2.2.3"
+        }
+    ],
+    "export": {
+        "include": "include"
+    }
+}
