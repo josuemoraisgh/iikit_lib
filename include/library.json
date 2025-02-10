@@ -1,5 +1,5 @@
 {
-  "name": "IIkit_lib",
+  "name": "iikit_lib",
   "version": "0.0.1",
   "authors": [
     {
@@ -42,25 +42,17 @@
   "export": {},
   "examples": [
     {
-      "name": "PiscaLED_TaskManager",
-      "base": "examples\\PiscaLED_TaskManager",
+      "name": "piscaLED",
+      "base": "examples\\piscaLED",
       "files": [
-        "como_debugar.txt",
-        "esp32_pin.jpg",
-        "platformio.ini",
-        "README.md",
-        "drivers\\CDM-v2.12.36.4-WHQL-Certified.zip",
-        "drivers\\zadig-2.9.exe",
-        "lib\\README",
-        "simulIDE\\ArduinoPiscaLedLerAnalogico.sim1",
-        "src\\esp1.cpp",
-        "src\\esp2.cpp",
-        "src\\esp3.cpp",
-        "src\\main.cpp",
-        "test\\README",
-        "wserial\\com2tcp-rfc2217.bat",
-        "wserial\\hub4com.exe",
-        "wserial\\readWSerial.bat"
+        "piscaLED.ino"
+      ]
+    },
+    {
+      "name": "taskManager",
+      "base": "examples\\taskManager",
+      "files": [
+        "taskManager.ino"
       ]
     }
   ],
