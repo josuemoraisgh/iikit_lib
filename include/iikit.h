@@ -13,9 +13,9 @@
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <WiFi.h>
+#include <EEPROM.h>
+#include <ESPmDNS.h>
 
-#include "services/EEPROM.h"
-#include "services/ESPmDNS.h"
 #include "services/OTA.h"
 #include "services/WSerial_c.h"
 #include "services/display_c.h"

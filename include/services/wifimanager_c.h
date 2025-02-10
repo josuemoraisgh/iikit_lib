@@ -9,7 +9,7 @@
  */
 
 #include <Arduino.h>
-#include "other/WiFiManager-2.0.17/WiFiManager.h"
+#include <WiFiManager.h>
 #include "services/WSerial_c.h"
 
 /**
