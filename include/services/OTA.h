@@ -10,7 +10,7 @@
 #define OTA_H
 
 #include <Arduino.h>
-#include "services/ArduinoOTA.h"
+#include <ArduinoOTA.h>
 #include <utility>
 #include <vector>
 #include <numeric>
