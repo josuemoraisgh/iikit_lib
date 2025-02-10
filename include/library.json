@@ -1,6 +1,6 @@
 {
   "name": "iikit_lib",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "authors": [
     {
       "name": "josuemoraisgh",
@@ -40,22 +40,6 @@
     }
   ],
   "export": {},
-  "examples": [
-    {
-      "name": "piscaLED",
-      "base": "examples\\piscaLED",
-      "files": [
-        "piscaLED.ino"
-      ]
-    },
-    {
-      "name": "taskManager",
-      "base": "examples\\taskManager",
-      "files": [
-        "taskManager.ino"
-      ]
-    }
-  ],
   "keywords": [
     "kit",
     "instrumentacao",
