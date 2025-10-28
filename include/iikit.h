@@ -27,7 +27,8 @@
 #include "util/dinDebounce.h"
 
 /********** GPIO DEFINITIONS ***********/
-#define def_pin_ADC1 39    ///< GPIO para entrada ADC1.
+#define def_pin_ADC1 39    ///< GPIO para entrada ADC1. ADC1_CHANNEL_3
+#define def_pin_ADC2 36    ///< GPIO para entrada ADC2. ADC1_CHANNEL_0
 #define def_pin_RTN2 35    ///< GPIO para botão retentivo 2.
 #define def_pin_PUSH1 34   ///< GPIO para botão push 1.
 #define def_pin_PWM 33     ///< GPIO para saída PWM.
@@ -126,7 +127,7 @@ void IIKit_c::setup()
     /****** Inicializando Telnet|Serial***********/
     startWSerial(&WSerial, 4000 + String(idKit[0]).toInt(), 115200);    
     WSerial.println("Booting");
-    hart.setup(&WSerial);
+    hart.setup(4100 + String(idKit[0]).toInt(), 115200);
     /********** Inicializando Display ***********/
     if (startDisplay(&disp, def_pin_SDA, def_pin_SCL))
     {
@@ -207,7 +208,7 @@ void IIKit_c::loop(void)
     OTA::handle();
     updateWSerial(&WSerial);
     updateDisplay(&disp);
-
+    hart.loop();
     if (wm.getPortalRunning())
     {
         wm.process();

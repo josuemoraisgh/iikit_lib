@@ -32,11 +32,6 @@
             "version": "^1.11.7"
         },
         {
-            "name": "DacESP32",
-            "owner": "yellobyte",
-            "version": "^1.1.1"
-        },
-        {
             "name": "WiFiManager",
             "owner": "tzapu",
             "version": "^2.0.17"
@@ -45,6 +40,21 @@
             "name": "ESP Telnet",
             "owner": "lennarthennigs",
             "version": "^2.2.3"
+        },
+        {
+            "name": "Adafruit BusIO",
+            "owner": "adafruit",
+            "version": "^1.17.0"
+        },        
+        {
+            "name": "Adafruit ADS1X15",
+            "owner": "adafruit",
+            "version": "^2.5.0"
+        },
+        {
+            "name": "DacESP32",
+            "owner": "yellobyte",
+            "version": "^2.0.0"
         }        
     ],
     "export": {
