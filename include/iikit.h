@@ -21,7 +21,6 @@
 #include "services/display_c.h"
 #include "services/wifimanager_c.h"
 #include "services/ads1115_c.h"
-#include "services/hart_c.h"
 
 #include "util/asyncDelay.h"
 #include "util/dinDebounce.h"
@@ -62,7 +61,6 @@ private:
     char DDNSName[15] = "inindkit"; ///< Nome do dispositivo para DDNS.
     WifiManager_c wm;               ///< Gerenciador de conexões Wi-Fi.
     ADS1115_c ads;                  ///< Conversor ADC.
-    Hart_c hart;
 
     /**
      * @brief Exibe mensagens de erro e reinicia o dispositivo se necessário.
@@ -124,9 +122,8 @@ void IIKit_c::setup()
     idKit[0] = (char)EEPROM.read(0);
     strcat(DDNSName, idKit);    
     /****** Inicializando Telnet|Serial***********/
-    startWSerial(&WSerial, 4000 + String(idKit[0]).toInt(), 115200);    
+    startWSerial(&WSerial, 115200);    
     WSerial.println("Booting");
-    hart.setup(4100 + String(idKit[0]).toInt(), 115200);
     /********** Inicializando Display ***********/
     if (startDisplay(&disp, def_pin_SDA, def_pin_SCL))
     {
@@ -207,7 +204,7 @@ void IIKit_c::loop(void)
     OTA::handle();
     updateWSerial(&WSerial);
     updateDisplay(&disp);
-    hart.loop();
+
     if (wm.getPortalRunning())
     {
         wm.process();

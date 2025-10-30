@@ -44,7 +44,7 @@ public:
   template <typename T> void plot(const char *varName, TickType_t x, T y, const char *unit = nullptr);
   template <typename T> void plot(const char *varName, T y, const char *unit = nullptr);
 
-  void log(const char* text, uint32_t ts_ms = 0);
+  void log(const char* text);
   void onInputReceived(std::function<void(std::string)> callback) { on_input = callback; }
 
   bool udpAvailable() const { return _udpAvailable; }
@@ -197,7 +197,6 @@ void WSerial_c::println() {
 }
 
 void WSerial_c::log(const char* text) {
-  if (ts_ms == 0) ts_ms = millis();
   String line = String(text); line += "\n";
   if (_udpAvailable && _udpLinked) _udpSendLine(line);
   else Serial.print(line);
