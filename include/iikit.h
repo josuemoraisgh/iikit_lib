@@ -52,7 +52,6 @@
 ///< GPIO0  - ESP_COM_BOOT:6
 ///< ESPEN  - ESP_COM_EN:1
 
-
 /**
  * @class IIKit_c
  * @brief Classe para gerenciamento do kit industrial.

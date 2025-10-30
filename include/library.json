@@ -1,6 +1,6 @@
 {
   "name": "iikit_lib",
-  "version": "0.0.6",
+  "version": "0.0.8",
   "authors": [
     {
       "name": "josuemoraisgh",
@@ -29,11 +29,6 @@
       "version": "^1.11.7"
     },
     {
-      "owner": "yellobyte",
-      "name": "DacESP32",
-      "version": "^1.1.1"
-    },
-    {
       "owner": "tzapu",
       "name": "WiFiManager",
       "version": "^2.0.17"
@@ -42,6 +37,21 @@
       "owner": "lennarthennigs",
       "name": "ESP Telnet",
       "version": "^2.2.3"
+    },
+    {
+      "owner": "adafruit",
+      "name": "Adafruit BusIO",
+      "version": "^1.17.0"
+    },
+    {
+      "owner": "adafruit",
+      "name": "Adafruit ADS1X15",
+      "version": "^2.5.0"
+    },
+    {
+      "owner": "yellobyte",
+      "name": "DacESP32",
+      "version": "^2.0.0"
     }
   ],
   "export": {},

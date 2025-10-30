@@ -17,11 +17,8 @@
  * @brief Classe para gerenciar a configuração do ADC e DMA.
  */
 #define NUM_SAMPLES 1024 ///< Define o tamanho fixo do buffer de amostras do ADC.
-<<<<<<< HEAD
-=======
 #define ADC1_CHANNEL ADC_CHANNEL_3  ///< 
 #define ADC2_CHANNEL ADC_CHANNEL_0  ///< 
->>>>>>> e43a769db2d0780be5e09e0673d45718d839d49f
 
 class AdcDmaESP {
 private:
@@ -35,11 +32,8 @@ public:
      *
      * Inicializa o handle como NULL e configura os valores padrão para as variáveis.
      */
-<<<<<<< HEAD
     AdcDmaConfig() : adc_handle(nullptr), bytes_read(0) {}
-=======
-    AdcDmaESP() : adc_handle(nullptr), bytes_read(0) {}
->>>>>>> e43a769db2d0780be5e09e0673d45718d839d49f
+
 
     /**
      * @brief Configura o ADC e o DMA para operação contínua.
