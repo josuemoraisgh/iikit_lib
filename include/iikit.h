@@ -122,7 +122,7 @@ void IIKit_c::setup()
     idKit[0] = (char)EEPROM.read(0);
     strcat(DDNSName, idKit);    
     /****** Inicializando Telnet|Serial***********/
-    startWSerial(&WSerial, 115200);    
+    startWSerial(&WSerial, 9600);    
     WSerial.println("Booting");
     /********** Inicializando Display ***********/
     if (startDisplay(&disp, def_pin_SDA, def_pin_SCL))

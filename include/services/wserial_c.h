@@ -310,9 +310,8 @@ void WSerial_c::log(const char *text, uint32_t ts_ms)
   line += String(ts_ms);
   line += ":";
   line += String(text ? text : "");
-  line += "
-          ";
-      if (_udpAvailable && _udpLinked) _udpSendLine(line);
+  line += NEWLINE;
+  if (_udpAvailable && _udpLinked) _udpSendLine(line);
   else Serial.print(line);
 }
 
