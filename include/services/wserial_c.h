@@ -81,7 +81,7 @@ void WSerial_c::disconnect()
     char myIPStr[16];
     snprintf(myIPStr, sizeof(myIPStr), "%u.%u.%u.%u", myIP[0], myIP[1], myIP[2], myIP[3]);
     String bye = String("DISCONNECT:") + String(myIPStr) + String(":") + String(_cmdUdpPort) + String("\n");
-    _udpSendLine(bye);
+    _sendLine(bye);
   }
   // Desfaz link para que tudo volte à Serial
   _udpLinked = false;
@@ -108,8 +108,7 @@ void WSerial_c::startUdp()
 {
   if (WiFi.isConnected() && _udp.listen(_cmdUdpPort))
   {
-    _
-        _udpAvailable = true;
+    _udpAvailable = true;
     Serial.printf("[UDP] Listening CMD on %u\n", _cmdUdpPort);
 
     // Um único handler para CONNECT, DISCONNECT e para comandos UDP -> on_input
@@ -220,7 +219,7 @@ void WSerial_c::_handleDisconnectPacket(const String &msg, const IPAddress &)
   disconnect();
 }
 
-void WSerial_c::_udpSendLine(const String &line)
+void WSerial_c::_sendLine(const String &line)
 {
   if (!_udpLinked || !_udpAvailable || !_remoteIP || _remoteDataPort == 0)
     Serial.print(line);
@@ -295,9 +294,8 @@ void WSerial_c::println()
 
 void WSerial_c::log(const char *text, uint32_t ts_ms)
 {
-  if (ts_ms == 0)
-    ts_ms = millis();
-  line += String(ts_ms);
+  if (ts_ms == 0)  ts_ms = millis();
+  String line = String(ts_ms);
   line += ":";
   line += String(text ? text : "");
   line += NEWLINE;
