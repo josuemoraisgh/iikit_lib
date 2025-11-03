@@ -38,10 +38,9 @@ protected:
 public:
   void stop();
   void disconnect(); // força o modo Serial (desfaz link UDP) e envia DISCONNECT ao alvo atual
+  void connect();
   friend inline void startWSerial(WSerial_c *ws, unsigned long baudrate = BAUD_RATE, uint16_t cmdUdpPort = 47268) { ws->start(baudrate, cmdUdpPort); }
   friend inline void updateWSerial(WSerial_c *ws) { ws->update(); }
-
-  void startUdp();
 
   template <typename T>
   void print(const T &data);
@@ -99,19 +98,21 @@ void WSerial_c::start(unsigned long baudrate, uint16_t cmdUdpPort)
   _udpLinked = false;
   _remoteDataPort = 0;
 
-  startUdp();
+  Connect();
 }
 
-void WSerial_c::startUdp()
+void WSerial_c::connect()
 {
-  if (WiFi.isConnected() && _udp.listen(_cmdUdpPort))
+  if (WiFi.isConnected())
   {
-    _udpAvailable = true;
-    Serial.printf("[UDP] Listening CMD on %u\n", _cmdUdpPort);
+    if (_udp.listen(_cmdUdpPort))
+    {
+      _udpAvailable = true;
+      Serial.printf("[UDP] Listening CMD on %u\n", _cmdUdpPort);
 
-    // Um único handler para CONNECT, DISCONNECT e para comandos UDP -> on_input
-    _udp.onPacket([this](AsyncUDPPacket packet)
-                  {
+      // Um único handler para CONNECT, DISCONNECT e para comandos UDP -> on_input
+      _udp.onPacket([this](AsyncUDPPacket packet)
+                    {
             String s;
             s.reserve(packet.length() + 1);
             for (size_t i = 0; i < packet.length(); ++i)
@@ -139,6 +140,7 @@ void WSerial_c::startUdp()
                   on_input(std::string(s.c_str()));
               }
             } });
+    }
   }
   else
   {
@@ -148,11 +150,12 @@ void WSerial_c::startUdp()
 
 void WSerial_c::update()
 {
-  if (!_udpAvailable) startUdp();
+  if (!_udpAvailable)
+    connect();
   // Entrada por Serial (callback on_input)
-  if(Serial.available() && (!_udpLinked || !_udpAvailable || !_remoteIP || _remoteDataPort == 0)){
-    if (on_input)
-      on_input(std::string((Serial.readStringUntil('\n')).c_str()));
+  if (on_input && Serial.available() && !(_udpLinked && _udpAvailable && _remoteIP && _remoteDataPort != 0))
+  {
+    on_input(std::string((Serial.readStringUntil('\n')).c_str()));
   }
 }
 
@@ -220,10 +223,10 @@ void WSerial_c::_handleDisconnectPacket(const String &msg, const IPAddress &)
 
 void WSerial_c::_sendLine(const String &line)
 {
-  if (!_udpLinked || !_udpAvailable || !_remoteIP || _remoteDataPort == 0)
-    Serial.print(line);
-  else
+  if (_udpLinked && _udpAvailable && _remoteIP && _remoteDataPort != 0)
     _udp.writeTo((const uint8_t *)line.c_str(), line.length(), _remoteIP, _remoteDataPort);
+  else
+    Serial.print(line);
 }
 
 bool WSerial_c::_parseHostPort(const String &s, String &host, uint16_t &port)
@@ -256,7 +259,8 @@ void WSerial_c::plot(const char *varName, TickType_t x, T y, const char *unit)
   str += varName;
   str += ":";
   uint32_t ts_ms = (uint32_t)(x);
-  if (ts_ms < 100000) ts_ms = millis();
+  if (ts_ms < 100000)
+    ts_ms = millis();
   str += String(ts_ms);
   str += ":";
   str += String(y);
