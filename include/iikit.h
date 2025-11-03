@@ -201,7 +201,6 @@ void IIKit_c::setup()
 
 void IIKit_c::loop(void)
 {
-    if(!WSerial.udpAvailable()) WSerial.startUdp();
     OTA::handle();
     updateWSerial(&WSerial);
     updateDisplay(&disp);

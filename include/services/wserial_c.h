@@ -92,9 +92,7 @@ void WSerial_c::start(unsigned long baudrate, uint16_t cmdUdpPort)
 {
   Serial.begin(baudrate);
   while (!Serial)
-  {
     delay(1);
-  } // USB CDC
 
   _cmdUdpPort = cmdUdpPort;
   _udpAvailable = false;
@@ -150,11 +148,12 @@ void WSerial_c::startUdp()
 
 void WSerial_c::update()
 {
+  if (!_udpAvailable) startUdp();
   // Entrada por Serial (callback on_input)
-  if (!_udpLinked || !_udpAvailable || !_remoteIP || _remoteDataPort == 0 || !Serial.available())
-    return;
-  if (on_input)
-    on_input(std::string((Serial.readStringUntil('\n')).c_str()));
+  if(Serial.available() && (!_udpLinked || !_udpAvailable || !_remoteIP || _remoteDataPort == 0)){
+    if (on_input)
+      on_input(std::string((Serial.readStringUntil('\n')).c_str()));
+  }
 }
 
 void WSerial_c::_handleConnectPacket(const String &msg, const IPAddress &)
@@ -243,7 +242,6 @@ bool WSerial_c::_parseHostPort(const String &s, String &host, uint16_t &port)
 }
 
 // === API pública ===
-
 template <typename T>
 void WSerial_c::plot(const char *varName, T y, const char *unit)
 {
@@ -258,8 +256,7 @@ void WSerial_c::plot(const char *varName, TickType_t x, T y, const char *unit)
   str += varName;
   str += ":";
   uint32_t ts_ms = (uint32_t)(x);
-  if (ts_ms < 100000)
-    ts_ms = millis();
+  if (ts_ms < 100000) ts_ms = millis();
   str += String(ts_ms);
   str += ":";
   str += String(y);
@@ -294,7 +291,8 @@ void WSerial_c::println()
 
 void WSerial_c::log(const char *text, uint32_t ts_ms)
 {
-  if (ts_ms == 0)  ts_ms = millis();
+  if (ts_ms == 0)
+    ts_ms = millis();
   String line = String(ts_ms);
   line += ":";
   line += String(text ? text : "");
