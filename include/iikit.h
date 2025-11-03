@@ -75,7 +75,7 @@ public:
     DigitalINDebounce  push_1;      ///< Botão push 1.
     DigitalINDebounce  push_2;      ///< Botão push 2.
     Display_c disp;    ///< Display OLED.
-    WSerial_c WSerial; ///< Conexão Telnet e Serial.
+    WSerial_c WSerial; ///< Conexão UDP e Serial.
 
     /**
      * @brief Inicializa o kit industrial.

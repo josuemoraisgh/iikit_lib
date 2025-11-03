@@ -306,7 +306,6 @@ void WSerial_c::log(const char *text, uint32_t ts_ms)
 {
   if (ts_ms == 0)
     ts_ms = millis();
-  String line = ">:";
   line += String(ts_ms);
   line += ":";
   line += String(text ? text : "");
