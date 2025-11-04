@@ -1,3 +1,6 @@
+#ifndef __ADS1X15_H
+#define __ADS1X15_H
+
 /**
  * @file ADS1115_c.h
  * @brief Classe para simplificar o uso do ADS1115 com o Adafruit_ADS1X15.
@@ -45,3 +48,5 @@ public:
         return ((Adafruit_ADS1115 *)this)->readADC_SingleEnded(channel);
     }
 };
+
+#endif 

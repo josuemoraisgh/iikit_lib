@@ -1,3 +1,6 @@
+#ifndef __JTASK_H
+#define __JTASK_H
+
 /**
  * @file jtask.cpp
  * @brief Biblioteca para gerenciamento de tarefas sem utilização de interrupções de timer e sem uso de fila.
@@ -83,3 +86,5 @@ void jtaskLoop() {
     }
   }
 }
+
+#endif

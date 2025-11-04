@@ -28,19 +28,20 @@ protected:
 
   std::function<void(std::string)> on_input;
 
-  void start(unsigned long baudrate = BAUD_RATE, uint16_t cmdUdpPort = 47268);
-  void update();
+  void _start(unsigned long baudrate = BAUD_RATE, uint16_t cmdUdpPort = 47268);
+  void _update();
+  
+  void _disconnect(); // força o modo Serial (desfaz link UDP) e envia DISCONNECT ao alvo atual
+  void _connect();
+  
   void _handleConnectPacket(const String &msg, const IPAddress &senderIP);
   void _handleDisconnectPacket(const String &msg, const IPAddress &senderIP);
   void _sendLine(const String &line);
   static bool _parseHostPort(const String &s, String &host, uint16_t &port);
 
 public:
-  void stop();
-  void disconnect(); // força o modo Serial (desfaz link UDP) e envia DISCONNECT ao alvo atual
-  void connect();
-  friend inline void startWSerial(WSerial_c *ws, unsigned long baudrate = BAUD_RATE, uint16_t cmdUdpPort = 47268) { ws->start(baudrate, cmdUdpPort); }
-  friend inline void updateWSerial(WSerial_c *ws) { ws->update(); }
+  friend inline void startWSerial(WSerial_c *ws, unsigned long baudrate = BAUD_RATE, uint16_t cmdUdpPort = 47268) { ws->_start(baudrate, cmdUdpPort); }
+  friend inline void updateWSerial(WSerial_c *ws) { ws->_update(); }
 
   template <typename T>
   void print(const T &data);
@@ -63,31 +64,7 @@ public:
 
 // -------- impl --------
 
-void WSerial_c::stop()
-{
-  if (_udpAvailable)
-    _udp.close();
-  _udpAvailable = false;
-  _udpLinked = false;
-  _remoteDataPort = 0;
-}
-void WSerial_c::disconnect()
-{
-  // Envia DISCONNECT:<MY_IP>:<CMD_UDP_PORT> para o alvo atual (se houver)
-  if (_udpAvailable && _udpLinked && _remoteIP && _remoteDataPort != 0)
-  {
-    IPAddress myIP = WiFi.localIP();
-    char myIPStr[16];
-    snprintf(myIPStr, sizeof(myIPStr), "%u.%u.%u.%u", myIP[0], myIP[1], myIP[2], myIP[3]);
-    String bye = String("DISCONNECT:") + String(myIPStr) + String(":") + String(_cmdUdpPort) + String("\n");
-    _sendLine(bye);
-  }
-  // Desfaz link para que tudo volte à Serial
-  _udpLinked = false;
-  _remoteDataPort = 0;
-}
-
-void WSerial_c::start(unsigned long baudrate, uint16_t cmdUdpPort)
+void WSerial_c::_start(unsigned long baudrate, uint16_t cmdUdpPort)
 {
   Serial.begin(baudrate);
   while (!Serial)
@@ -101,7 +78,7 @@ void WSerial_c::start(unsigned long baudrate, uint16_t cmdUdpPort)
   connect();
 }
 
-void WSerial_c::connect()
+void WSerial_c::_connect()
 {
   if (WiFi.isConnected())
   {
@@ -148,7 +125,23 @@ void WSerial_c::connect()
   }
 }
 
-void WSerial_c::update()
+void WSerial_c::_disconnect()
+{
+  // Envia DISCONNECT:<MY_IP>:<CMD_UDP_PORT> para o alvo atual (se houver)
+  if (_udpAvailable && _udpLinked && _remoteIP && _remoteDataPort != 0)
+  {
+    IPAddress myIP = WiFi.localIP();
+    char myIPStr[16];
+    snprintf(myIPStr, sizeof(myIPStr), "%u.%u.%u.%u", myIP[0], myIP[1], myIP[2], myIP[3]);
+    String bye = String("DISCONNECT:") + String(myIPStr) + String(":") + String(_cmdUdpPort) + String("\n");
+    _sendLine(bye);
+  }
+  // Desfaz link para que tudo volte à Serial
+  _udpLinked = false;
+  _remoteDataPort = 0;
+}
+
+void WSerial_c::_update()
 {
   if (!_udpAvailable)
     connect();

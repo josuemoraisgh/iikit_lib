@@ -1,3 +1,6 @@
+#ifndef __ASYNCDELAY_H
+#define __ASYNCDELAY_H
+
 #include <Arduino.h>
 #include <stdint.h>
 
@@ -66,3 +69,5 @@ inline void AsyncDelay_c::repeat(void) {
     // Ao simplesmente somar _interval, criamos um novo ponto de expiração no futuro.
     _expires += _interval;
 }
+
+#endif

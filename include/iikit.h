@@ -58,7 +58,7 @@
 class IIKit_c
 {
 private:
-    char DDNSName[15] = "inindkit"; ///< Nome do dispositivo para DDNS.
+    char DDNSName[15] = "iikit"; ///< Nome do dispositivo para mDNS.
     WifiManager_c wm;               ///< Gerenciador de conexões Wi-Fi.
     ADS1115_c ads;                  ///< Conversor ADC.
 

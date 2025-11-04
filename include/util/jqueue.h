@@ -1,3 +1,6 @@
+#ifndef __JQUEUE_H
+#define __JQUEUE_H
+
 /**
  * @file jqueue.h
  * @brief Biblioteca para manipulação de filas genéricas no Arduino.
@@ -5,9 +8,6 @@
  * Este arquivo implementa uma estrutura de fila genérica com suporte a diferentes tipos de dados,
  * permitindo o uso em ambientes com interrupções, como ISRs (Interrupt Service Routines).
  */
-
-#ifndef __JQUEUE_H
-#define __JQUEUE_H
 
 #include <Arduino.h>
 #include <stdlib.h>

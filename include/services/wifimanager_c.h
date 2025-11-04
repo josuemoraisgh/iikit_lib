@@ -1,3 +1,6 @@
+#ifndef __WIFIMANAGER_H
+#define __WIFIMANAGER_H
+
 // link: https://dronebotworkshop.com/wifimanager/
 /**
  * @file WifiManager_c.h
@@ -108,3 +111,5 @@ void WifiManager_c::setApName(const char *apName) {
     this->apName = apName;
     ((WiFiManager *)this)->setHostname(apName);
 }
+
+#endif

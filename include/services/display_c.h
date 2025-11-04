@@ -1,3 +1,6 @@
+#ifndef __DISPLAY_H
+#define __DISPLAY_H
+
 /**
  * @file Display_c.h
  * @brief Classe para manipulação de displays OLED utilizando a biblioteca Adafruit_SSD1306.
@@ -154,3 +157,5 @@ void Display_c::setText(uint8_t line, const char txt[], bool funcMode, uint8_t t
 void Display_c::setFuncMode(bool funcMode) {
     this->isFuncMode = funcMode;
 }
+
+#endif 

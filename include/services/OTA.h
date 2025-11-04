@@ -1,3 +1,6 @@
+#ifndef OTA_H
+#define OTA_H
+
 /**
  * @file OTA.h
  * @brief Classe para gerenciamento de atualizações Over-The-Air (OTA) utilizando a biblioteca ArduinoOTA.
@@ -5,9 +8,6 @@
  * Esta classe facilita a configuração e o gerenciamento de atualizações OTA em dispositivos compatíveis,
  * permitindo atualizações do firmware e gerenciamento de interrupções durante o processo.
  */
-
-#ifndef OTA_H
-#define OTA_H
 
 #include <Arduino.h>
 #include <ArduinoOTA.h>
