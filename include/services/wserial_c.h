@@ -98,7 +98,7 @@ void WSerial_c::start(unsigned long baudrate, uint16_t cmdUdpPort)
   _udpLinked = false;
   _remoteDataPort = 0;
 
-  Connect();
+  connect();
 }
 
 void WSerial_c::connect()
