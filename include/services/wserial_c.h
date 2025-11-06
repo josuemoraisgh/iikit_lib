@@ -75,7 +75,7 @@ void WSerial_c::_start(unsigned long baudrate, uint16_t cmdUdpPort)
   _udpLinked = false;
   _remoteDataPort = 0;
 
-  connect();
+  _connect();
 }
 
 void WSerial_c::_connect()
@@ -143,8 +143,7 @@ void WSerial_c::_disconnect()
 
 void WSerial_c::_update()
 {
-  if (!_udpAvailable)
-    connect();
+  if (!_udpAvailable) _connect();
   // Entrada por Serial (callback on_input)
   if (on_input && Serial.available() && !(_udpLinked && _udpAvailable && _remoteIP && _remoteDataPort != 0))
   {
@@ -211,7 +210,7 @@ void WSerial_c::_handleDisconnectPacket(const String &msg, const IPAddress &)
 
   Serial.printf("[UDP] Linked to %s:%u (OK sent)\n", _remoteIP.toString().c_str(), _remoteDataPort);
 
-  disconnect();
+  _disconnect();
 }
 
 void WSerial_c::_sendLine(const String &line)
