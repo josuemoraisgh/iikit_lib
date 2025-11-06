@@ -30,10 +30,10 @@ protected:
 
   void _start(unsigned long baudrate = BAUD_RATE, uint16_t cmdUdpPort = 47268);
   void _update();
-  
+
   void _disconnect(); // força o modo Serial (desfaz link UDP) e envia DISCONNECT ao alvo atual
   void _connect();
-  
+
   void _handleConnectPacket(const String &msg, const IPAddress &senderIP);
   void _handleDisconnectPacket(const String &msg, const IPAddress &senderIP);
   void _sendLine(const String &line);
@@ -50,9 +50,11 @@ public:
   void println();
 
   template <typename T>
+  void plot(const char *varName, T y, const char *unit = nullptr);
+  template <typename T>
   void plot(const char *varName, TickType_t x, T y, const char *unit = nullptr);
   template <typename T>
-  void plot(const char *varName, T y, const char *unit = nullptr);
+  void plot(const char *varName, TickType_t x, T y, size_t ylen, const char *unit)
 
   void log(const char *text, uint32_t ts_ms = 0);
   void onInputReceived(std::function<void(std::string)> callback) { on_input = callback; }
@@ -143,7 +145,8 @@ void WSerial_c::_disconnect()
 
 void WSerial_c::_update()
 {
-  if (!_udpAvailable) _connect();
+  if (!_udpAvailable)
+    _connect();
   // Entrada por Serial (callback on_input)
   if (on_input && Serial.available() && !(_udpLinked && _udpAvailable && _remoteIP && _remoteDataPort != 0))
   {
@@ -264,6 +267,27 @@ void WSerial_c::plot(const char *varName, TickType_t x, T y, const char *unit)
   str += "|g" NEWLINE;
 
   _sendLine(str);
+}
+
+template <typename T>
+void WSerial_c::plot(const char *varName, TickType_t x, T y, size_t ylen, const char *unit)
+{
+  print(">"); // Inicio de envio de dados para um gráfico.
+  print(varName);
+  print(":");  
+  for (size_t i = 0; i < ylen; i++)
+  {
+      print((_count++)*x);
+      print(":");
+      print( (uint16_t) (abs(y[i]) & 0x0FFF));
+      if(i < ylen -1) print(";");
+  }
+  if (unit != NULL)
+  {
+    print("§"); // Unidade na sequência
+    print(unit);
+  }
+  println("|g"); // Modo Grafico  
 }
 
 template <typename T>
