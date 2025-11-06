@@ -22,6 +22,7 @@ protected:
   bool _udpAvailable = false;   // listener CMD ativo
   bool _udpLinked = false;      // CONNECT recebido
   uint16_t _cmdUdpPort = 47268; // porta de comando
+  uint32_t base_ms = 0;
 
   IPAddress _remoteIP;          // destino (VSCode/LasecPlot)
   uint16_t _remoteDataPort = 0; // porta de dados destino (UDP_PORT)
@@ -50,11 +51,11 @@ public:
   void println();
 
   template <typename T>
-  void plot(const char *varName, T y, const char *unit = nullptr);
+  void plot(const char *varName, uint32_t dt_ms, const T* y, size_t ylen, const char *unit = nullptr);
   template <typename T>
   void plot(const char *varName, TickType_t x, T y, const char *unit = nullptr);
   template <typename T>
-  void plot(const char *varName, TickType_t x, T y, size_t ylen, const char *unit)
+  void plot(const char *varName, T y, const char *unit = nullptr);
 
   void log(const char *text, uint32_t ts_ms = 0);
   void onInputReceived(std::function<void(std::string)> callback) { on_input = callback; }
@@ -269,26 +270,31 @@ void WSerial_c::plot(const char *varName, TickType_t x, T y, const char *unit)
   _sendLine(str);
 }
 
-template <typename T>
-void WSerial_c::plot(const char *varName, TickType_t x, T y, size_t ylen, const char *unit)
+template<typename T>
+void WSerial_c::plot(const char *varName, uint32_t dt_ms, const T* y, size_t ylen, const char *unit)
 {
-  print(">"); // Inicio de envio de dados para um gráfico.
-  print(varName);
-  print(":");  
+  String str(">");
+  str += varName;
+  str += ":";
+
   for (size_t i = 0; i < ylen; i++)
   {
-      print((_count++)*x);
-      print(":");
-      print( (uint16_t) (abs(y[i]) & 0x0FFF));
-      if(i < ylen -1) print(";");
+    str += String((uint32_t)(base_ms));  // mantém como decimal sem espaços
+    str += ":";
+    str += String((double)y[i], 6);      // 6 casas decimais
+    base_ms += dt_ms; 
+    if (i < ylen - 1) str += ";";
   }
-  if (unit != NULL)
-  {
-    print("§"); // Unidade na sequência
-    print(unit);
+
+  if (unit != nullptr) {
+    str += "§";
+    str += unit;
   }
-  println("|g"); // Modo Grafico  
+
+  str += "|g" NEWLINE;
+  _sendLine(str);
 }
+
 
 template <typename T>
 void WSerial_c::print(const T &data)
