@@ -23,9 +23,10 @@ protected:
   uint16_t listenPort = 0;
   bool isUdpAvailable = false;
   bool isUdpLinked = false;
+  uint32_t base_ms = 0;
   std::function<void(std::string)> on_input;
-
-  void _sendLine(const String &line);
+  template <typename T>
+  void _sendLine(const T &line);
   bool _parseHostPort(const String &s,String &cmd, String &host, uint16_t &port);
   void _handleOnPacket(AsyncUDPPacket packet);
   void _setup(unsigned long baudrate = BAUD_RATE, uint16_t port=47268);
@@ -36,24 +37,26 @@ public:
   friend inline void updateWSerial(WSerial_c *ws) { ws->_loop(); }
 
   template <typename T>
-  void print(const T &data);
-  template <typename T>
-  void println(const T &data);
-  void println();
-
-  template <typename T>
   void plot(const char *varName, uint32_t dt_ms, const T* y, size_t ylen, const char *unit = nullptr);
   template <typename T>
   void plot(const char *varName, TickType_t x, T y, const char *unit = nullptr);
   template <typename T>
-  void plot(const char *varName, T y, const char *unit = nullptr);
+  void plot(const char *varName, T y, const char *unit) { plot(varName, (TickType_t)xTaskGetTickCount(), y, unit);}
 
-  void log(const char *text, uint32_t ts_ms = 0);
+  template <typename T>
+  void print(const T &data) { _sendLine(String(data)); }
+  template <typename T>
+  void println(const T &data){ _sendLine(String(data)+NEWLINE);}
+  void println() { _sendLine(String(NEWLINE));}
+  
+  void log(const char *text, uint32_t ts_ms= 0) {_sendLine(String(ts_ms ? ts_ms: millis())+":"+String(text ? text : "")+NEWLINE);}
   void onInputReceived(std::function<void(std::string)> callback) { on_input = callback; }
 };
 
 // -------- impl --------
-void WSerial_c::_sendLine(const String &line) {
+template <typename T>
+void WSerial_c::_sendLine(const T &txt) {
+  String line = String(txt);
   if(isUdpLinked) udp.writeTo(reinterpret_cast<const uint8_t*>(line.c_str()), line.length(), lasecPlotIP, lasecPlotReceivePort);
   else Serial.print(line);
 }
@@ -150,12 +153,6 @@ void  WSerial_c::_loop() {
 }
 // === API pública ===
 template <typename T>
-void WSerial_c::plot(const char *varName, T y, const char *unit)
-{
-  plot(varName, (TickType_t)xTaskGetTickCount(), y, unit);
-}
-
-template <typename T>
 void WSerial_c::plot(const char *varName, TickType_t x, T y, const char *unit)
 {
   // >var:timestamp_ms:valor[§unit]|g\n
@@ -201,32 +198,6 @@ void WSerial_c::plot(const char *varName, uint32_t dt_ms, const T* y, size_t yle
 
   str += "|g" NEWLINE;
   _sendLine(str);
-}
-
-
-template <typename T>
-void WSerial_c::print(const T &data)
-{
-  _sendLine(String(data));
-}
-
-template <typename T>
-void WSerial_c::println(const T &data)
-{
-  String s = String(data)+NEWLINE;
-  _sendLine(s);
-}
-
-void WSerial_c::println()
-{
-  _sendLine(String(NEWLINE));
-}
-
-void WSerial_c::log(const char *text, uint32_t ts_ms)
-{
-  if (ts_ms == 0) ts_ms = millis();
-  String line = String(ts_ms)+":"+String(text ? text : "")+NEWLINE;
-  _sendLine(line);
 }
 
 #endif
