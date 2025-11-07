@@ -13,36 +13,27 @@
 // 3) Telemetria:
 //    var: ">var:timestamp_ms:valor|g\n" para (<IP_LOCAL>,<UDP_PORT>)
 //    Log: "timestamp_ms:Mensagem\n"
-
 class WSerial_c
 {
 protected:
   // UDP único (escuta e envia)
-  AsyncUDP _udp;                // um socket só
-  bool _udpAvailable = false;   // listener CMD ativo
-  bool _udpLinked = false;      // CONNECT recebido
-  uint16_t _cmdUdpPort = 47268; // porta de comando
-  uint32_t base_ms = 0;
-
-  IPAddress _remoteIP;          // destino (VSCode/LasecPlot)
-  uint16_t _remoteDataPort = 0; // porta de dados destino (UDP_PORT)
-
+  AsyncUDP udp;
+  IPAddress lasecPlotIP;
+  uint16_t  lasecPlotReceivePort = 0;
+  uint16_t listenPort = 0;
+  bool isUdpAvailable = false;
+  bool isUdpLinked = false;
   std::function<void(std::string)> on_input;
 
-  void _start(unsigned long baudrate = BAUD_RATE, uint16_t cmdUdpPort = 47268);
-  void _update();
-
-  void _disconnect(); // força o modo Serial (desfaz link UDP) e envia DISCONNECT ao alvo atual
-  void _connect();
-
-  void _handleConnectPacket(const String &msg, const IPAddress &senderIP);
-  void _handleDisconnectPacket(const String &msg, const IPAddress &senderIP);
   void _sendLine(const String &line);
-  static bool _parseHostPort(const String &s, String &host, uint16_t &port);
+  bool _parseHostPort(const String &s,String &cmd, String &host, uint16_t &port);
+  void _handleOnPacket(AsyncUDPPacket packet);
+  void _setup(unsigned long baudrate = BAUD_RATE, uint16_t port=47268);
+  void _loop();
 
 public:
-  friend inline void startWSerial(WSerial_c *ws, unsigned long baudrate = BAUD_RATE, uint16_t cmdUdpPort = 47268) { ws->_start(baudrate, cmdUdpPort); }
-  friend inline void updateWSerial(WSerial_c *ws) { ws->_update(); }
+  friend inline void startWSerial(WSerial_c *ws, unsigned long baudrate = BAUD_RATE, uint16_t listenPort = 47268) { ws->_setup(baudrate, listenPort); }
+  friend inline void updateWSerial(WSerial_c *ws) { ws->_loop(); }
 
   template <typename T>
   void print(const T &data);
@@ -59,187 +50,104 @@ public:
 
   void log(const char *text, uint32_t ts_ms = 0);
   void onInputReceived(std::function<void(std::string)> callback) { on_input = callback; }
-
-  bool udpAvailable() const { return _udpAvailable; }
-  bool udpLinked() const { return _udpLinked; }
-  uint16_t cmdUdpPort() const { return _cmdUdpPort; }
 };
 
 // -------- impl --------
-
-void WSerial_c::_start(unsigned long baudrate, uint16_t cmdUdpPort)
-{
-  Serial.begin(baudrate);
-  while (!Serial)
-    delay(1);
-
-  _cmdUdpPort = cmdUdpPort;
-  _udpAvailable = false;
-  _udpLinked = false;
-  _remoteDataPort = 0;
-
-  _connect();
+void WSerial_c::_sendLine(const String &line) {
+  if(isUdpLinked) udp.writeTo(reinterpret_cast<const uint8_t*>(line.c_str()), line.length(), lasecPlotIP, lasecPlotReceivePort);
+  else Serial.print(line);
 }
 
-void WSerial_c::_connect()
-{
-  if (WiFi.isConnected())
-  {
-    if (_udp.listen(_cmdUdpPort))
-    {
-      _udpAvailable = true;
-      Serial.printf("[UDP] Listening CMD on %u\n", _cmdUdpPort);
+bool WSerial_c::_parseHostPort(const String &s,String &cmd, String &host, uint16_t &port) {
+  int c1 = s.indexOf(':');      // primeiro ':'
+  int c2 = s.lastIndexOf(':');  // último ':'
 
-      // Um único handler para CONNECT, DISCONNECT e para comandos UDP -> on_input
-      _udp.onPacket([this](AsyncUDPPacket packet)
-                    {
-            String s;
-            s.reserve(packet.length() + 1);
-            for (size_t i = 0; i < packet.length(); ++i)
-              s += char(packet.data()[i]);
-            s.trim();
+  if (c1 <= 0 || c2 <= c1) return false;
 
-            // CONNECT
-            if (s.startsWith("CONNECT:"))
-            {
-              _handleConnectPacket(s, packet.remoteIP());
-              return;
-            }
-            else
-            {
-              // DISCONNECT
-              if (s.startsWith("DISCONNECT:"))
-              {
-                _handleDisconnectPacket(s, packet.remoteIP());
-                return;
-              }
-              else
-              {
-                // Outros comandos UDP: repassa para on_input (se tiver)
-                if (on_input)
-                  on_input(std::string(s.c_str()));
-              }
-            } });
-    }
-  }
-  else
-  {
-    Serial.println("[UDP] WiFi not connected or listen() failed. Using Serial only.");
-  }
-}
+  cmd  = s.substring(0, c1);
+  host = s.substring(c1 + 1, c2);
 
-void WSerial_c::_disconnect()
-{
-  // Envia DISCONNECT:<MY_IP>:<CMD_UDP_PORT> para o alvo atual (se houver)
-  if (_udpAvailable && _udpLinked && _remoteIP && _remoteDataPort != 0)
-  {
-    IPAddress myIP = WiFi.localIP();
-    char myIPStr[16];
-    snprintf(myIPStr, sizeof(myIPStr), "%u.%u.%u.%u", myIP[0], myIP[1], myIP[2], myIP[3]);
-    String bye = String("DISCONNECT:") + String(myIPStr) + String(":") + String(_cmdUdpPort) + String("\n");
-    _sendLine(bye);
-  }
-  // Desfaz link para que tudo volte à Serial
-  _udpLinked = false;
-  _remoteDataPort = 0;
-}
-
-void WSerial_c::_update()
-{
-  if (!_udpAvailable)
-    _connect();
-  // Entrada por Serial (callback on_input)
-  if (on_input && Serial.available() && !(_udpLinked && _udpAvailable && _remoteIP && _remoteDataPort != 0))
-  {
-    on_input(std::string((Serial.readStringUntil('\n')).c_str()));
-  }
-}
-
-void WSerial_c::_handleConnectPacket(const String &msg, const IPAddress &)
-{
-  // msg = "CONNECT:<IP_LOCAL>:<UDP_PORT>"
-  String spec = msg.substring(8); // após "CONNECT:"
-  spec.trim();
-
-  String host;
-  uint16_t port = 0;
-  if (!_parseHostPort(spec, host, port))
-  {
-    Serial.printf("[UDP] Invalid CONNECT payload: %s\n", msg.c_str());
-    return;
-  }
-
-  IPAddress clientIP;
-  if (!clientIP.fromString(host))
-  {
-    WiFi.hostByName(host.c_str(), clientIP); // resolve DNS
-  }
-  if (!clientIP)
-  {
-    Serial.printf("[UDP] Could not resolve client host: %s\n", host.c_str());
-    return;
-  }
-
-  // Salva destino de dados
-  _remoteIP = clientIP;
-  _remoteDataPort = port;
-  _udpLinked = true;
-
-  // Responde CONNECT:<MY_IP>:<CMD_UDP_PORT>\n para o par de dados
-  IPAddress myIP = WiFi.localIP();
-  char myIPStr[16];
-  snprintf(myIPStr, sizeof(myIPStr), "%u.%u.%u.%u", myIP[0], myIP[1], myIP[2], myIP[3]);
-  String ok = "CONNECT:";
-  ok += myIPStr;
-  ok += ":";
-  ok += String(_cmdUdpPort);
-  ok += "\n";
-  _sendLine(ok);
-
-  Serial.printf("[UDP] Linked to %s:%u (OK sent)\n", _remoteIP.toString().c_str(), _remoteDataPort);
-}
-
-void WSerial_c::_handleDisconnectPacket(const String &msg, const IPAddress &)
-{
-  // Responde DISCONNECT:<MY_IP>:<CMD_UDP_PORT>\n para o par de dados
-  IPAddress myIP = WiFi.localIP();
-  char myIPStr[16];
-  snprintf(myIPStr, sizeof(myIPStr), "%u.%u.%u.%u", myIP[0], myIP[1], myIP[2], myIP[3]);
-  String ok = "DISCONNECT:";
-  ok += myIPStr;
-  ok += ":";
-  ok += String(_cmdUdpPort);
-  ok += "\n";
-  _sendLine(ok);
-
-  Serial.printf("[UDP] Linked to %s:%u (OK sent)\n", _remoteIP.toString().c_str(), _remoteDataPort);
-
-  _disconnect();
-}
-
-void WSerial_c::_sendLine(const String &line)
-{
-  if (_udpLinked && _udpAvailable && _remoteIP && _remoteDataPort != 0)
-    _udp.writeTo((const uint8_t *)line.c_str(), line.length(), _remoteIP, _remoteDataPort);
-  else
-    Serial.print(line);
-}
-
-bool WSerial_c::_parseHostPort(const String &s, String &host, uint16_t &port)
-{
-  int colon = s.lastIndexOf(':');
-  if (colon <= 0)
-    return false;
-  host = s.substring(0, colon);
-  String p = s.substring(colon + 1);
-  p.trim();
-  long v = p.toInt();
-  if (v <= 0 || v > 65535)
-    return false;
+  long v = s.substring(c2 + 1).toInt();
+  if (v <= 0 || v > 65535) return false;
   port = (uint16_t)v;
   return true;
 }
 
+void WSerial_c::_handleOnPacket(AsyncUDPPacket packet) {
+  String s((const char*)packet.data(), packet.length());
+  s.trim();
+  
+  String cmd, host;
+  uint16_t port;
+
+  if(!_parseHostPort(s,cmd,host,port)) { 
+    _sendLine(s); 
+    return;
+  }
+
+  // Seta o lasecPlotIP 
+  IPAddress ip;
+  if (!ip.fromString(host)) {
+    if (WiFi.hostByName(host.c_str(), ip) != 1) {
+      Serial.printf("[UDP] DNS fail: %s\n", host.c_str());
+      return;
+    }
+  } 
+  if (ip == IPAddress()) { Serial.println("[UDP] Invalid IP"); return; }
+
+  lasecPlotIP = ip;
+  lasecPlotReceivePort = port;   // Seta o lasecPlotReceivePort 
+
+  if (cmd == "CONNECT") { // s = "CONNECT:<LASECPLOT_IP>:<LASECPLOT_RECIVE_PORT>"
+    isUdpLinked = true;
+    const String txt = "CONNECT:" + WiFi.localIP().toString() + ":" + String(lasecPlotReceivePort) + "\n";
+    _sendLine(txt);
+    Serial.printf("[UDP] Linked to %s:%u (OK sent)\n", lasecPlotIP.toString().c_str(), lasecPlotReceivePort);
+    return;
+  } else {
+    if (cmd == "DISCONNECT"){ // Envia DISCONNECT:<LASECPLOT_IP>:<LASECPLOT_RECIVE_PORT> para o alvo atual (se houver)
+      if (isUdpLinked) {
+        const String txt = "DISCONNECT:" + WiFi.localIP().toString() + ":" + String(lasecPlotReceivePort) + "\n";
+        _sendLine(txt);
+        Serial.printf("[UDP] Linked to %s:%u (BYE sent)\n", lasecPlotIP.toString().c_str(), lasecPlotReceivePort);
+        isUdpLinked = false;
+        return;
+      }
+    }
+  }
+}
+
+void  WSerial_c::_setup(unsigned long baudrate = BAUD_RATE, uint16_t port=47268) {
+  Serial.begin(baudrate);
+  while (!Serial) delay(1);
+
+  listenPort = port;
+  if (udp.listen(listenPort)) {  // Tenta udp listen até conseguir
+    isUdpAvailable = true;
+    udp.onPacket([this](AsyncUDPPacket packet){_handleOnPacket(packet);});
+    Serial.println("[UDP] Listening on " + String(listenPort));
+  } else {
+    isUdpAvailable = false;
+    Serial.println("[UDP] listen() failed");
+  }
+}
+
+void  WSerial_c::_loop() {
+  // Se o listen falhou no setup, tente novamente de tempos em tempos
+  static uint32_t lastRetry = 0;
+  if (!isUdpAvailable && (millis() - lastRetry > 2000)) {
+    lastRetry = millis();
+    if (udp.listen(listenPort)) {
+      isUdpAvailable = true;
+      udp.onPacket([this](AsyncUDPPacket packet){_handleOnPacket(packet);});
+      Serial.println("[UDP] Listening on " + String(listenPort) + " (retry ok)");
+    }
+  }
+  if(Serial.available()){
+    String linha = Serial.readStringUntil('\n'); // Lê até '\n'
+    on_input(linha.c_str());
+  }
+}
 // === API pública ===
 template <typename T>
 void WSerial_c::plot(const char *varName, T y, const char *unit)
@@ -305,8 +213,7 @@ void WSerial_c::print(const T &data)
 template <typename T>
 void WSerial_c::println(const T &data)
 {
-  String s = String(data);
-  s += NEWLINE;
+  String s = String(data)+NEWLINE;
   _sendLine(s);
 }
 
@@ -317,12 +224,8 @@ void WSerial_c::println()
 
 void WSerial_c::log(const char *text, uint32_t ts_ms)
 {
-  if (ts_ms == 0)
-    ts_ms = millis();
-  String line = String(ts_ms);
-  line += ":";
-  line += String(text ? text : "");
-  line += NEWLINE;
+  if (ts_ms == 0) ts_ms = millis();
+  String line = String(ts_ms)+":"+String(text ? text : "")+NEWLINE;
   _sendLine(line);
 }
 
