@@ -18,16 +18,18 @@ namespace wserial {
 
     AsyncUDP udp;
     std::function<void(std::string)> on_input;
+
     template <typename T>
     void sendLine(const T &txt) {
-      if(isUdpLinked) {
-        String line = String(txt);
-        udp.writeTo(reinterpret_cast<const uint8_t*>(line.c_str()), line.length(), lasecPlotIP, lasecPlotReceivePort);
+      if (isUdpLinked) {
+        String line = String(txt); // alocação no heap aqui
+        udp.writeTo(reinterpret_cast<const uint8_t*>(line.c_str()),
+                    line.length(), lasecPlotIP, lasecPlotReceivePort);
+      } else {
+        Serial.print(txt);
       }
-      else Serial.print(txt);
     }
   
-
     bool parseHostPort(const String &s,String &cmd, String &host, uint16_t &port) {
       int c1 = s.indexOf(':');      // primeiro ':'
       int c2 = s.lastIndexOf(':');  // último ':'
@@ -129,62 +131,79 @@ namespace wserial {
   template<typename T>
   void plot(const char *varName, uint32_t dt_ms, const T* y, size_t ylen, const char *unit=nullptr)
   {
-      // Estima tamanho máximo (muito seguro)
-      // varName(30) + ylen * (12 chars?) + unit(10)
-      const size_t MAX_SZ = 64 + ylen * 32;
-      char *buf = (char*)malloc(MAX_SZ);
-      if (!buf) return;
+    // Estima tamanho máximo (muito seguro)
+    // varName(30) + ylen * (12 chars?) + unit(10)
+    const size_t MAX_SZ = 64 + ylen * 32;
+    char *buf = (char*)malloc(MAX_SZ);
+    if (!buf) return;
 
-      size_t pos = 0;
+    size_t pos = 0;
 
-      // Prefixo
-      pos += snprintf(buf + pos, MAX_SZ - pos, ">%s:", varName);
+    // Prefixo
+    pos += snprintf(buf + pos, MAX_SZ - pos, ">%s:", varName);
 
-      static uint32_t base = 0;
-      for (size_t i = 0; i < ylen; i++)
-      {
-          // dt (sempre decimal)
-          pos += snprintf(buf + pos, MAX_SZ - pos, "%u:", base);
+    static uint32_t base = 0;
+    for (size_t i = 0; i < ylen; i++)
+    {
+        // dt (sempre decimal)
+        pos += snprintf(buf + pos, MAX_SZ - pos, "%u:", base);
 
-          // valor (convertido com precisão)
-          pos += snprintf(buf + pos, MAX_SZ - pos, "%.2f", (double)y[i]);
+        // valor (convertido com precisão)
+        pos += snprintf(buf + pos, MAX_SZ - pos, "%.2f", (double)y[i]);
 
-          base += dt_ms;
+        base += dt_ms;
 
-          if (i < ylen - 1)
-              buf[pos++] = ';';
-      }
+        if (i < ylen - 1)
+            buf[pos++] = ';';
+    }
 
-      if (unit)
-          pos += snprintf(buf + pos, MAX_SZ - pos, "§%s", unit);
+    if (unit)
+        pos += snprintf(buf + pos, MAX_SZ - pos, "§%s", unit);
 
-      // Sufixo final
-      pos += snprintf(buf + pos, MAX_SZ - pos, "|g" NEWLINE);
-      detail::sendLine(buf);
+    // Sufixo final
+    pos += snprintf(buf + pos, MAX_SZ - pos, "|g" NEWLINE);
+    detail::sendLine(buf);
 
-      free(buf);
+    if (isUdpLinked) {
+      size_t len = strlen(buf);
+      udp.writeTo(reinterpret_cast<const uint8_t*>(buf),
+                  len, lasecPlotIP, lasecPlotReceivePort);
+    } else if(Serial.availableForWrite()){
+        Serial.print(buf);
+    }
   }
 
   template <typename T>
-  void plot(const char *varName, TickType_t x, T y, const char *unit= nullptr)  {
-    // >var:timestamp_ms:valor[§unit]|g\n
-    String str(">");
-    str += varName;
-    str += ":";
-    uint32_t ts_ms = (uint32_t)(x);
-    if (ts_ms < 100000)
-      ts_ms = millis();
-    str += String(ts_ms);
-    str += ":";
-    str += String(y);
-    if (unit && unit[0])
-    {
-      str += "§";
-      str += unit;
-    }
-    str += "|g" NEWLINE;
+  void plot(const char *varName, TickType_t x, T y, const char *unit = nullptr) 
+  {
+      // Máximo possível e seguro:
+      // varName (30) + números (20) + unit (10) + overhead
+      char buf[96];  
+      size_t pos = 0;
 
-    detail::sendLine(str);
+      // Prefixo
+      pos += snprintf(buf + pos, sizeof(buf) - pos, ">%s:", varName);
+
+      // timestamp
+      pos += snprintf(buf + pos, sizeof(buf) - pos, "%u:", (uint32_t)x);
+
+      // valor (converte qualquer T)
+      pos += snprintf(buf + pos, sizeof(buf) - pos, "%.2f", (double)y);
+
+      // unidade, se existir
+      if (unit)
+          pos += snprintf(buf + pos, sizeof(buf) - pos, "§%s", unit);
+
+      // sufixo
+      snprintf(buf + pos, sizeof(buf) - pos, "|g" NEWLINE);
+
+      if (isUdpLinked) {
+        size_t len = strlen(buf);
+        udp.writeTo(reinterpret_cast<const uint8_t*>(buf),
+                    len, lasecPlotIP, lasecPlotReceivePort);
+      } else if(Serial.availableForWrite()){
+        Serial.print(buf);
+      }
   }
 
   template <typename T>
