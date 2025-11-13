@@ -15,7 +15,6 @@ namespace wserial {
     uint16_t listenPort = 0;
     bool isUdpAvailable = false;
     bool isUdpLinked = false;
-    uint32_t base_ms = 0;
 
     AsyncUDP udp;
     std::function<void(std::string)> on_input;
@@ -127,7 +126,46 @@ namespace wserial {
   void onInputReceived(std::function<void(std::string)> callback) { detail::on_input = callback; }
 
   // === API pública ===
-    template <typename T>
+  template<typename T>
+  void plot(const char *varName, uint32_t dt_ms, const T* y, size_t ylen, const char *unit=nullptr)
+  {
+      // Estima tamanho máximo (muito seguro)
+      // varName(30) + ylen * (12 chars?) + unit(10)
+      const size_t MAX_SZ = 64 + ylen * 32;
+      char *buf = (char*)malloc(MAX_SZ);
+      if (!buf) return;
+
+      size_t pos = 0;
+
+      // Prefixo
+      pos += snprintf(buf + pos, MAX_SZ - pos, ">%s:", varName);
+
+      static uint32_t base = 0;
+      for (size_t i = 0; i < ylen; i++)
+      {
+          // dt (sempre decimal)
+          pos += snprintf(buf + pos, MAX_SZ - pos, "%u:", base);
+
+          // valor (convertido com precisão)
+          pos += snprintf(buf + pos, MAX_SZ - pos, "%.2f", (double)y[i]);
+
+          base += dt_ms;
+
+          if (i < ylen - 1)
+              buf[pos++] = ';';
+      }
+
+      if (unit)
+          pos += snprintf(buf + pos, MAX_SZ - pos, "§%s", unit);
+
+      // Sufixo final
+      pos += snprintf(buf + pos, MAX_SZ - pos, "|g" NEWLINE);
+      detail::sendLine(buf);
+
+      free(buf);
+  }
+
+  template <typename T>
   void plot(const char *varName, TickType_t x, T y, const char *unit= nullptr)  {
     // >var:timestamp_ms:valor[§unit]|g\n
     String str(">");
@@ -149,58 +187,9 @@ namespace wserial {
     detail::sendLine(str);
   }
 
-  template<typename T>
-  void plot(const char *varName, uint32_t dt_ms, const T* y, size_t ylen, const char *unit= nullptr)
-  {
-    String str(">");
-    str += varName;
-    str += ":";
-
-    for (size_t i = 0; i < ylen; i++)
-    {
-      str += String((uint32_t)(base_ms));  // mantém como decimal sem espaços
-      str += ":";
-      str += String((double)y[i], 6);      // 6 casas decimais
-      base_ms += dt_ms; 
-      if (i < ylen - 1) str += ";";
-    }
-
-    if (unit != nullptr) {
-      str += "§";
-      str += unit;
-    }
-
-    str += "|g" NEWLINE;
-    detail::sendLine(str);
-  }
-
   template <typename T>
   void plot(const char *varName, T y, const char *unit= nullptr)  {
     plot(varName, (TickType_t) xTaskGetTickCount(), y, unit);
-  }
-
-  template<typename T>
-  void plot(const char *varName, uint32_t dt_ms, const T* y, size_t ylen, const char *unit)  {
-    String str(">");
-    str += varName;
-    str += ":";
-
-    for (size_t i = 0; i < ylen; i++)
-    {
-      str += String((uint32_t) detail::base_ms);  // mantém como decimal sem espaços
-      str += ":";
-      str += String((double)y[i], 6);      // 6 casas decimais
-      detail::base_ms += dt_ms; 
-      if (i < ylen - 1) str += ";";
-    }
-
-    if (unit != nullptr) {
-      str += "§";
-      str += unit;
-    }
-
-    str += "|g" NEWLINE;
-    detail::sendLine(str);
   }
 
   void log(const char *text, uint32_t ts_ms)  {
