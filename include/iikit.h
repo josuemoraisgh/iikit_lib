@@ -125,7 +125,7 @@ void IIKit_c::setup()
     wm.setHostname(DDNSName);
     if (wm.autoConnect("AutoConnectAP")){
         /********** Inicializando WSerial ***********/
-        wserial::setup(9600,47268UL);    
+        wserial::setup(115200,47268UL);    
         wserial::print("\nWifi running - IP:");
         wserial::println(WiFi.localIP());
         /********** Inicializando mDNS ***********/
