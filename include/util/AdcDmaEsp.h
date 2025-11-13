@@ -1,161 +1,190 @@
 #pragma once
-#include <Arduino.h>
-#include <driver/i2s.h>
-#include <driver/adc.h>
 
-/*
- * Simple, safe and optimized ADC DMA engine for ESP32
- * - No malloc
- * - No tasks
- * - No locks
- * - Ring buffer for stable acquisition
- * - Callback always receives small fixed-size blocks
- * - Works in normal loop() without freezing
+#include <Arduino.h>
+#include "driver/i2s.h"
+#include "driver/adc.h"
+
+/**
+ * AdcDmaEsp
+ *
+ * - Usa I2S + ADC interno do ESP32 em modo DMA contínuo
+ * - DMA preenche internamente os buffers do driver
+ * - A classe "colhe" esses dados em um buffer circular grande na RAM
+ * - No loop() você chama:
+ *
+ *     adc.poll();   // coleta o que o DMA trouxe
+ *     size_t n = adc.read(newSamples, maxSamples); // lê só o que chegou desde a última vez
+ *
+ * - Sem tasks, sem malloc, sem travar o watchdog.
  */
 
-class SimpleADC_DMA {
-
+class AdcDmaEsp {
 public:
-    using CallbackFunc = void(*)(int16_t*, size_t);
+    // tamanho do buffer temporário (por leitura de DMA)
+    static constexpr size_t DMA_TMP_LEN = 256;
+    // tamanho total do buffer grande
+    static constexpr size_t BIGBUF_LEN  = 8192;
 
-private:
-    // -------------------------
-    // DMA parameters
-    // -------------------------
-    static constexpr size_t BUFFER_LEN  = 256;      // bloco enviado ao callback
-    static constexpr size_t DMA_BUFFERS = 4;        // buffers do driver I2S
-    static constexpr size_t DMA_SIZE    = BUFFER_LEN * DMA_BUFFERS;
+    AdcDmaEsp()
+        : _port(I2S_NUM_0),
+          _adc_channel(ADC1_CHANNEL_0),
+          _sample_rate(1000),
+          _started(false),
+          _write_pos(0),
+          _read_pos(0)
+    {}
 
-    int _sample_rate     = 0;
-    int _adc_channel     = -1;
-    bool _adc_fallback_mode = false;
-
-    uint32_t _callbackPeriod = 1000; // micros entre callbacks
-    uint32_t _last_plot = 0;
-
-    CallbackFunc _callbackFunc = nullptr;
-
-    // DMA read buffer
-    int16_t dma_buffer[DMA_SIZE];
-
-    // fallback ADC buffer (modo manual)
-    int16_t fallback_buffer[BUFFER_LEN];
-
-    // -------------------------
-    // Ring buffer estático
-    // -------------------------
-    static constexpr size_t RING_SAMPLES = DMA_SIZE * 2;
-    int16_t ring_buffer[RING_SAMPLES];
-    volatile size_t ring_head = 0;
-
-public:
-
-    // ---------------------------------------------------------
-    // Inicia o ADC via I2S (modo DMA)
-    // ---------------------------------------------------------
     bool begin(adc1_channel_t channel,
                int sample_rate_hz,
-               uint32_t callback_period_us,
                i2s_port_t port = I2S_NUM_0)
     {
         _adc_channel = channel;
         _sample_rate = sample_rate_hz;
-        _callbackPeriod = callback_period_us;
+        _port        = port;
 
-        // Configuração do ADC
+        // Configura ADC1
         adc1_config_width(ADC_WIDTH_BIT_12);
-        adc1_config_channel_atten(channel, ADC_ATTEN_DB_12);
+        if (adc1_config_channel_atten(_adc_channel, ADC_ATTEN_DB_12) != ESP_OK) {
+            return false;
+        }
 
-        // -------------------------
-        // Configuração do I2S
-        // -------------------------
+        // Configura I2S em modo ADC embutido
         i2s_config_t i2s_config = {};
-        i2s_config.mode = (i2s_mode_t)(I2S_MODE_MASTER |
-                                       I2S_MODE_RX |
-                                       I2S_MODE_ADC_BUILT_IN);
+        i2s_config.mode = (i2s_mode_t)(
+            I2S_MODE_MASTER |
+            I2S_MODE_RX |
+            I2S_MODE_ADC_BUILT_IN
+        );
         i2s_config.sample_rate = _sample_rate;
         i2s_config.bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT;
         i2s_config.channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT;
         i2s_config.communication_format = I2S_COMM_FORMAT_STAND_I2S;
-        i2s_config.dma_buf_count = DMA_BUFFERS;
-        i2s_config.dma_buf_len   = BUFFER_LEN;
-        i2s_config.use_apll = false;
+        i2s_config.dma_buf_count = 4;
+        i2s_config.dma_buf_len   = DMA_TMP_LEN;
+        i2s_config.use_apll      = false;
 
-        if (i2s_driver_install(port, &i2s_config, 0, nullptr) != ESP_OK)
+        if (i2s_driver_install(_port, &i2s_config, 0, nullptr) != ESP_OK) {
             return false;
+        }
 
-        if (i2s_set_adc_mode(ADC_UNIT_1, channel) != ESP_OK)
+        if (i2s_set_adc_mode(ADC_UNIT_1, _adc_channel) != ESP_OK) {
+            i2s_driver_uninstall(_port);
             return false;
+        }
 
-        if (i2s_adc_enable(port) != ESP_OK)
+        if (i2s_adc_enable(_port) != ESP_OK) {
+            i2s_driver_uninstall(_port);
             return false;
+        }
 
-        _adc_fallback_mode = false;
-        _last_plot = micros();
-
+        _write_pos = 0;
+        _read_pos  = 0;
+        _started   = true;
         return true;
     }
 
-    // ---------------------------------------------------------
-    // Define o callback
-    // ---------------------------------------------------------
-    void onData(CallbackFunc cb) {
-        _callbackFunc = cb;
+    void end() {
+        if (!_started) return;
+        i2s_adc_disable(_port);
+        i2s_driver_uninstall(_port);
+        _started = false;
     }
 
-    // ---------------------------------------------------------
-    // Rotina a ser chamada no loop()
-    // ---------------------------------------------------------
-    void adcDmaLoop() {
+    /**
+     * poll()
+     *
+     * Chame MUITAS vezes no loop().
+     * Ele coleta tudo o que o DMA já escreveu nos buffers internos
+     * e copia para o buffer circular grande.
+     */
+    void poll() {
+        if (!_started) return;
 
-        // ----- Parte 1: adquirir dados -----
-        if (!_adc_fallback_mode) {
+        // buffer temporário na pilha
+        int16_t tmp[DMA_TMP_LEN];
 
+        // Limita quantas leituras fazemos por chamada para não travar o loop
+        for (int iter = 0; iter < 4; ++iter) {
             size_t bytes_read = 0;
-            esp_err_t err = i2s_read(I2S_NUM_0,
-                                     dma_buffer,
-                                     sizeof(dma_buffer),
-                                     &bytes_read,
-                                     10 /* timeout */);
 
-            if (err == ESP_OK && bytes_read > 0) {
+            esp_err_t err = i2s_read(
+                _port,
+                (void*)tmp,
+                sizeof(tmp),
+                &bytes_read,
+                0  // timeout 0 => não bloqueia
+            );
 
-                size_t count = bytes_read / sizeof(int16_t);
-
-                // Copia para ring buffer
-                for (size_t i = 0; i < count; i++) {
-                    ring_buffer[ring_head] = dma_buffer[i];
-                    ring_head = (ring_head + 1) % RING_SAMPLES;
-                }
-            }
-        }
-        else {
-            // fallback ADC modo manual
-            for (size_t i = 0; i < BUFFER_LEN; i++) {
-                int16_t v = adc1_get_raw((adc1_channel_t)_adc_channel);
-                fallback_buffer[i] = v;
-                ring_buffer[ring_head] = v;
-                ring_head = (ring_head + 1) % RING_SAMPLES;
-            }
-        }
-
-        // ----- Parte 2: callback periódico -----
-        uint32_t now = micros();
-        if (_callbackFunc && (now - _last_plot >= _callbackPeriod)) {
-
-            static int16_t small_block[BUFFER_LEN];
-
-            // copia bloco pequeno recente do ring
-            for (size_t i = 0; i < BUFFER_LEN; i++) {
-                size_t idx = (ring_head + RING_SAMPLES - BUFFER_LEN + i) % RING_SAMPLES;
-                small_block[i] = ring_buffer[idx];
+            if (err != ESP_OK || bytes_read == 0) {
+                // nada mais para ler agora
+                break;
             }
 
-            _callbackFunc(small_block, BUFFER_LEN);
-            _last_plot = now;
+            size_t samples = bytes_read / sizeof(int16_t);
+            _pushToBigBuffer(tmp, samples);
+        }
+    }
+
+    /**
+     * read()
+     *
+     * Copia para 'dest' até 'maxSamples' novas amostras que chegaram desde
+     * a última chamada de read().
+     *
+     * Retorna a quantidade de amostras copiadas.
+     */
+    size_t read(int16_t* dest, size_t maxSamples) {
+        if (!_started) return 0;
+
+        uint32_t available = _write_pos - _read_pos;
+        if (available == 0) return 0;
+
+        if (available > BIGBUF_LEN) {
+            // consumidor ficou para trás; descarta mais antigas
+            _read_pos = _write_pos - BIGBUF_LEN;
+            available = BIGBUF_LEN;
         }
 
-        // Alivia watchdog
-        vTaskDelay(1);
+        size_t toRead = (available < maxSamples) ? available : maxSamples;
+
+        for (size_t i = 0; i < toRead; ++i) {
+            uint32_t idx = (_read_pos + i) % BIGBUF_LEN;
+            dest[i] = _bigbuf[idx];
+        }
+
+        _read_pos += toRead;
+        return toRead;
+    }
+
+    /**
+     * Quantidade de amostras disponíveis para read()
+     */
+    size_t available() const {
+        return _write_pos - _read_pos;
+    }
+
+private:
+    i2s_port_t      _port;
+    adc1_channel_t  _adc_channel;
+    int             _sample_rate;
+    bool            _started;
+
+    // buffer grande circular
+    int16_t         _bigbuf[BIGBUF_LEN];
+    volatile uint32_t _write_pos;  // posição lógica de escrita
+    volatile uint32_t _read_pos;   // posição lógica de leitura
+
+    void _pushToBigBuffer(const int16_t* data, size_t count) {
+        for (size_t i = 0; i < count; ++i) {
+            uint32_t idx = _write_pos % BIGBUF_LEN;
+            _bigbuf[idx] = data[i];
+            _write_pos++;
+        }
+
+        // Se ultrapassou muito, adiante o read_pos para manter só as mais recentes
+        uint32_t diff = _write_pos - _read_pos;
+        if (diff > BIGBUF_LEN) {
+            _read_pos = _write_pos - BIGBUF_LEN;
+        }
     }
 };
