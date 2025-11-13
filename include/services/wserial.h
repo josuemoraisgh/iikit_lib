@@ -30,12 +30,12 @@ namespace wserial {
       }
     }
 
-    inline void sendLine(const char *txt, size_t len){
+    inline void sendLine(const char *txt, size_t len) {
       if (isUdpLinked) {
-        udp.writeTo(reinterpret_cast<const uint8_t*>(buf),
-                    len, lasecPlotIP, lasecPlotReceivePort);
-      } else if(Serial.availableForWrite()){
-          Serial.print(buf);
+          udp.writeTo(reinterpret_cast<const uint8_t*>(txt),
+                      len, lasecPlotIP, lasecPlotReceivePort);
+      } else if (Serial.availableForWrite()) {
+          Serial.write(reinterpret_cast<const uint8_t*>(txt), len);
       }
     }
 
