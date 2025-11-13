@@ -37,13 +37,11 @@ namespace wserial {
       } else {
         // 2) Tenta Serial apenas se tiver espaço imediato
         size_t free = Serial.availableForWrite();
-        if (free > 0) {
-            size_t sendLen = (len < free ? len : free);
-            Serial.write(reinterpret_cast<const uint8_t*>txt, sendLen);
+        if (free > len) {
+            Serial.write(reinterpret_cast<const uint8_t*>(txt), len);
         }
       }
     }
-
 
     bool parseHostPort(const String &s,String &cmd, String &host, uint16_t &port) {
       int c1 = s.indexOf(':');      // primeiro ':'
@@ -177,6 +175,7 @@ namespace wserial {
     // Sufixo final
     pos += snprintf(buf + pos, MAX_SZ - pos, "|g" NEWLINE);
     detail::sendLine(buf, pos);
+    free(buf);
   }
 
   template <typename T>
