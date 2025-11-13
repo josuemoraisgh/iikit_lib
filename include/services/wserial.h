@@ -149,6 +149,31 @@ namespace wserial {
     detail::sendLine(str);
   }
 
+  template<typename T>
+  void plot(const char *varName, uint32_t dt_ms, const T* y, size_t ylen, const char *unit= nullptr)
+  {
+    String str(">");
+    str += varName;
+    str += ":";
+
+    for (size_t i = 0; i < ylen; i++)
+    {
+      str += String((uint32_t)(base_ms));  // mantém como decimal sem espaços
+      str += ":";
+      str += String((double)y[i], 6);      // 6 casas decimais
+      base_ms += dt_ms; 
+      if (i < ylen - 1) str += ";";
+    }
+
+    if (unit != nullptr) {
+      str += "§";
+      str += unit;
+    }
+
+    str += "|g" NEWLINE;
+    detail::sendLine(str);
+  }
+
   template <typename T>
   void plot(const char *varName, T y, const char *unit= nullptr)  {
     plot(varName, (TickType_t) xTaskGetTickCount(), y, unit);
