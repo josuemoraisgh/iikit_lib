@@ -17,7 +17,7 @@
 #include <WiFiManager.h>
 #include <ArduinoOTA.h>
 
-#include "services/WSerial_c.h"
+#include "services/wserial.h"
 #include "services/display_c.h"
 
 #include "services/ads1115_c.h"
@@ -75,7 +75,6 @@ public:
     DigitalINDebounce  push_1;      ///< Botão push 1.
     DigitalINDebounce  push_2;      ///< Botão push 2.
     Display_c disp;    ///< Display OLED.
-    WSerial_c WSerial; ///< Conexão UDP e Serial.
 
     /**
      * @brief Inicializa o kit industrial.
@@ -129,18 +128,19 @@ void IIKit_c::setup()
         ESP.restart();
     }
     /********** Inicializando WSerial ***********/
-    startWSerial(&WSerial, 9600);    
-    WSerial.println("Booting");
+    wserial::setup(9600,47268UL);    
+    wserial::print("\nWifi running - IP:");
+    wserial::println(WiFi.localIP());
     /********** Inicializando mDNS ***********/
-    if (!MDNS.begin(DDNSName)) WSerial.println("[mDNS] begin failed");
-    else WSerial.println("[mDNS] begin in " + String(DDNSName));
+    if (!MDNS.begin(DDNSName)) wserial::println("[mDNS] begin failed");
+    else wserial::println("[mDNS] begin in " + String(DDNSName));
 
     /********** Inicializando OTA ***********/
     ArduinoOTA
-        .onStart([]() {WSerial.println("[OTA] Start");})
-        .onEnd([]() {WSerial.println("[OTA] End"); })
-        .onProgress([](unsigned int p, unsigned int t) {WSerial.println("[OTA] " + String((p*100)/t));})
-        .onError([](ota_error_t e) { WSerial.println("[OTA] Error " + String(e)); })
+        .onStart([]() {wserial::println("[OTA] Start");})
+        .onEnd([]() {wserial::println("[OTA] End"); })
+        .onProgress([](unsigned int p, unsigned int t) {wserial::println("[OTA] " + String((p*100)/t));})
+        .onError([](ota_error_t e) { wserial::println("[OTA] Error " + String(e)); })
         .setHostname(DDNSName)
         .begin();
 
@@ -148,7 +148,7 @@ void IIKit_c::setup()
     if (startDisplay(&disp, def_pin_SDA, def_pin_SCL))
     {
         disp.setText(1, "Inicializando...");
-        WSerial.println("Display running");
+        wserial::println("Display running");
     }
     else
     {
@@ -156,11 +156,9 @@ void IIKit_c::setup()
     }
 
     delay(50);
-
-    disp.setFuncMode(true);
-    disp.setText(1, "Mode: Acces Point", true);
-    disp.setText(2, "SSID: AutoConnectAP", true);
-    disp.setText(3, "PSWD: ", true);
+    disp.setFuncMode(false);
+    disp.setText(1, (WiFi.localIP().toString() + " ID:" + String(idKit[0])).c_str());
+    disp.setText(2, DDNSName);
     /********** Configurando GPIOs ***********/
     pinMode(def_pin_RTN1, INPUT_PULLDOWN);
     pinMode(def_pin_RTN2, INPUT_PULLDOWN);
@@ -198,15 +196,9 @@ void IIKit_c::setup()
 
 void IIKit_c::loop(void)
 {
-    OTA::handle();
-    updateWSerial(&WSerial);
+    ArduinoOTA.handle();
+    wserial::loop();
     updateDisplay(&disp);
-
-    if (wm.getPortalRunning())
-    {
-        wm.process();
-    }
-
     rtn_1.update();
     rtn_2.update();
     push_1.update();
@@ -235,10 +227,10 @@ uint16_t IIKit_c::analogRead4a20_2(void)
 
 void IIKit_c::errorMsg(String error, bool restart)
 {
-    WSerial.println(error);
+    wserial::println(error);
     if (restart)
     {
-        WSerial.println("Rebooting now...");
+        wserial::println("Rebooting now...");
         delay(2000);
         ESP.restart();
     }
