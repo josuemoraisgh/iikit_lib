@@ -11,15 +11,15 @@
 #define __ININDKIT_H
 
 #include <Arduino.h>
-#include <HardwareSerial.h>
 #include <WiFi.h>
 #include <EEPROM.h>
 #include <ESPmDNS.h>
+#include <WiFiManager.h>
 
 #include "services/OTA.h"
 #include "services/WSerial_c.h"
 #include "services/display_c.h"
-#include "services/wifimanager_c.h"
+
 #include "services/ads1115_c.h"
 
 #include "util/asyncDelay.h"
@@ -59,7 +59,7 @@ class IIKit_c
 {
 private:
     char DDNSName[15] = "iikit"; ///< Nome do dispositivo para mDNS.
-    WifiManager_c wm;               ///< Gerenciador de conexões Wi-Fi.
+    WiFiManager wm;               ///< Gerenciador de conexões Wi-Fi.
     ADS1115_c ads;                  ///< Conversor ADC.
 
     /**
@@ -121,9 +121,29 @@ void IIKit_c::setup()
     // EEPROM.commit();
     idKit[0] = (char)EEPROM.read(0);
     strcat(DDNSName, idKit);    
-    /****** Inicializando Telnet|Serial***********/
+    /****** Inicializando WIFI ***********/
+    WiFi.mode(WIFI_STA);
+    wm.setHostname(DDNSName);
+    if (!wm.autoConnect("AutoConnectAP")){
+        delay(2000);
+        ESP.restart();
+    }
+    /********** Inicializando WSerial ***********/
     startWSerial(&WSerial, 9600);    
     WSerial.println("Booting");
+    /********** Inicializando mDNS ***********/
+    if (!MDNS.begin(DDNSName)) wserial::println("[mDNS] begin failed");
+    else wserial::println("[mDNS] begin in " + String(DDNSName));
+
+    /********** Inicializando OTA ***********/
+    ArduinoOTA
+        .onStart([]() {wserial::println("[OTA] Start");})
+        .onEnd([]() {wserial::println("[OTA] End"); })
+        .onProgress([](unsigned int p, unsigned int t) {wserial::println("[OTA] " + String((p*100)/t));})
+        .onError([](ota_error_t e) { wserial::println("[OTA] Error " + String(e)); })
+        .setHostname(DDNSName)
+        .begin();
+
     /********** Inicializando Display ***********/
     if (startDisplay(&disp, def_pin_SDA, def_pin_SCL))
     {
@@ -136,34 +156,11 @@ void IIKit_c::setup()
     }
 
     delay(50);
-    /********** Configurando Wi-Fi ***********/
-    WiFi.mode(WIFI_STA);
-    wm.start(&WSerial);
-    wm.setApName(DDNSName);
 
     disp.setFuncMode(true);
     disp.setText(1, "Mode: Acces Point", true);
     disp.setText(2, "SSID: AutoConnectAP", true);
     disp.setText(3, "PSWD: ", true);
-
-    if (wm.autoConnect("AutoConnectAP"))
-    {
-        WSerial.print("\nWifi running - IP:");
-        WSerial.println(WiFi.localIP());
-        disp.setFuncMode(false);
-        disp.setText(1, (WiFi.localIP().toString() + " ID:" + String(idKit[0])).c_str());
-        disp.setText(2, DDNSName);
-        disp.setText(3, "UFU Mode");
-        delay(50);
-    }
-    else
-    {
-        errorMsg("Wifi error.\nAP MODE...", false);
-    }
-
-    /********** Inicializando OTA ***********/
-    OTA::start(DDNSName);
-
     /********** Configurando GPIOs ***********/
     pinMode(def_pin_RTN1, INPUT_PULLDOWN);
     pinMode(def_pin_RTN2, INPUT_PULLDOWN);
