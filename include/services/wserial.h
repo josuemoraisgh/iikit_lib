@@ -34,8 +34,13 @@ namespace wserial {
       if (isUdpLinked) {
           udp.writeTo(reinterpret_cast<const uint8_t*>(txt),
                       len, lasecPlotIP, lasecPlotReceivePort);
-      } else if (Serial.availableForWrite()) {
-          Serial.write(reinterpret_cast<const uint8_t*>(txt), len);
+      } else {
+        // 2) Tenta Serial apenas se tiver espaço imediato
+        size_t free = Serial.availableForWrite();
+        if (free > 0) {
+            size_t sendLen = (len < free ? len : free);
+            Serial.write(reinterpret_cast<const uint8_t*>txt, sendLen);
+        }
       }
     }
 
