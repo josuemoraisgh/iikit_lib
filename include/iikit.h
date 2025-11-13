@@ -15,8 +15,8 @@
 #include <EEPROM.h>
 #include <ESPmDNS.h>
 #include <WiFiManager.h>
+#include <ArduinoOTA.h>
 
-#include "services/OTA.h"
 #include "services/WSerial_c.h"
 #include "services/display_c.h"
 
@@ -132,15 +132,15 @@ void IIKit_c::setup()
     startWSerial(&WSerial, 9600);    
     WSerial.println("Booting");
     /********** Inicializando mDNS ***********/
-    if (!MDNS.begin(DDNSName)) wserial::println("[mDNS] begin failed");
-    else wserial::println("[mDNS] begin in " + String(DDNSName));
+    if (!MDNS.begin(DDNSName)) WSerial.println("[mDNS] begin failed");
+    else WSerial.println("[mDNS] begin in " + String(DDNSName));
 
     /********** Inicializando OTA ***********/
     ArduinoOTA
-        .onStart([]() {wserial::println("[OTA] Start");})
-        .onEnd([]() {wserial::println("[OTA] End"); })
-        .onProgress([](unsigned int p, unsigned int t) {wserial::println("[OTA] " + String((p*100)/t));})
-        .onError([](ota_error_t e) { wserial::println("[OTA] Error " + String(e)); })
+        .onStart([]() {WSerial.println("[OTA] Start");})
+        .onEnd([]() {WSerial.println("[OTA] End"); })
+        .onProgress([](unsigned int p, unsigned int t) {WSerial.println("[OTA] " + String((p*100)/t));})
+        .onError([](ota_error_t e) { WSerial.println("[OTA] Error " + String(e)); })
         .setHostname(DDNSName)
         .begin();
 
