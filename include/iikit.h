@@ -174,8 +174,8 @@ void IIKit_c::setup()
     pinMode(def_pin_D3, OUTPUT);
     pinMode(def_pin_D4, OUTPUT);
     pinMode(def_pin_PWM, OUTPUT);
-    pinMode(def_pin_DAC1, ANALOG);
-    pinMode(def_pin_ADC1, ANALOG);
+    // pinMode(def_pin_DAC1, ANALOG);
+    // pinMode(def_pin_ADC1, ANALOG);
     pinMode(def_pin_RELE, OUTPUT);
     pinMode(def_pin_W4a20_1, OUTPUT);
 

@@ -120,7 +120,7 @@ void WSerial_c::_handleOnPacket(AsyncUDPPacket packet) {
   }
 }
 
-void  WSerial_c::_setup(unsigned long baudrate = BAUD_RATE, uint16_t port=47268) {
+void  WSerial_c::_setup(unsigned long baudrate, uint16_t port) {
   Serial.begin(baudrate);
   while (!Serial) delay(1);
 
