@@ -120,65 +120,68 @@ void IIKit_c::setup()
     // EEPROM.commit();
     idKit[0] = (char)EEPROM.read(0);
     strcat(DDNSName, idKit);    
+    /********** Inicializando Display ***********/
+    if (startDisplay(&disp, def_pin_SDA, def_pin_SCL)) {
+        disp.setText(1, "Inicializando...");
+        disp.setText(2, "Not Connected");
+        disp.setText(3, "Starting Access Point Mode");
+        updateDisplay(&disp);
+    }
+    delay(50);
     /****** Inicializando WIFI ***********/
     WiFi.mode(WIFI_STA);
     wm.setHostname(DDNSName);
-    if (wm.autoConnect("AutoConnectAP")){
-        /********** Inicializando WSerial ***********/
-        wserial::setup(115200,47268UL);    
-        wserial::print("\nWifi running - IP:");
-        wserial::println(WiFi.localIP());
-        /********** Inicializando mDNS ***********/
-        if (!MDNS.begin(DDNSName)) wserial::println("[mDNS] begin failed");
-        else wserial::println("[mDNS] begin in " + String(DDNSName));
-        /********** Inicializando OTA ***********/
-        ArduinoOTA
-            .onStart([]() {wserial::println("[OTA] Start");})
-            .onEnd([]() {wserial::println("[OTA] End"); })
-            .onProgress([](unsigned int p, unsigned int t) {wserial::println("[OTA] " + String((p*100)/t));})
-            .onError([](ota_error_t e) { wserial::println("[OTA] Error " + String(e)); })
-            .setHostname(DDNSName)
-            .begin();
-        /********** Inicializando Display ***********/
-        if (startDisplay(&disp, def_pin_SDA, def_pin_SCL)) {
-            disp.setText(1, "Inicializando...");
-            wserial::println("Display running");
-        } else errorMsg("Display error.", false);
-        delay(50);
-        disp.setFuncMode(false);
-        disp.setText(1, (WiFi.localIP().toString() + " ID:" + String(idKit[0])).c_str());
-        disp.setText(2, DDNSName);
-        /********** Configurando GPIOs ***********/
-        pinMode(def_pin_RTN1, INPUT_PULLDOWN);
-        pinMode(def_pin_RTN2, INPUT_PULLDOWN);
-        pinMode(def_pin_PUSH1, INPUT_PULLDOWN);
-        pinMode(def_pin_PUSH2, INPUT_PULLDOWN);
-        pinMode(def_pin_D1, OUTPUT);
-        pinMode(def_pin_D2, OUTPUT);
-        pinMode(def_pin_D3, OUTPUT);
-        pinMode(def_pin_D4, OUTPUT);
-        pinMode(def_pin_PWM, OUTPUT);
-        // pinMode(def_pin_DAC1, ANALOG);
-        // pinMode(def_pin_ADC1, ANALOG);
-        pinMode(def_pin_RELE, OUTPUT);
-        pinMode(def_pin_W4a20_1, OUTPUT);
+    wm.autoConnect("AutoConnectAP");
+    /********** Inicializando WSerial ***********/
+    wserial::setup(115200,47268UL);    
+    wserial::print("\nWifi running - IP:");
+    wserial::println(WiFi.localIP());
+    /********** Inicializando mDNS ***********/
+    if (!MDNS.begin(DDNSName)) wserial::println("[mDNS] begin failed");
+    else wserial::println("[mDNS] begin in " + String(DDNSName));
+    /********** Inicializando OTA ***********/
+    ArduinoOTA
+        .onStart([]() {wserial::println("[OTA] Start");})
+        .onEnd([]() {wserial::println("[OTA] End"); })
+        .onProgress([](unsigned int p, unsigned int t) {wserial::println("[OTA] " + String((p*100)/t));})
+        .onError([](ota_error_t e) { wserial::println("[OTA] Error " + String(e)); })
+        .setHostname(DDNSName)
+        .begin();
 
-        rtn_1.setup(def_pin_RTN1, 50);
-        rtn_2.setup(def_pin_RTN2, 50);
-        push_1.setup(def_pin_PUSH1, 50);
-        push_2.setup(def_pin_PUSH2, 50);
+    disp.setFuncMode(false);
+    disp.setText(1, (WiFi.localIP().toString() + " ID:" + String(idKit[0])).c_str());
+    disp.setText(2, DDNSName);
+    disp.setText(3, "");
+    /********** Configurando GPIOs ***********/
+    pinMode(def_pin_RTN1, INPUT_PULLDOWN);
+    pinMode(def_pin_RTN2, INPUT_PULLDOWN);
+    pinMode(def_pin_PUSH1, INPUT_PULLDOWN);
+    pinMode(def_pin_PUSH2, INPUT_PULLDOWN);
+    pinMode(def_pin_D1, OUTPUT);
+    pinMode(def_pin_D2, OUTPUT);
+    pinMode(def_pin_D3, OUTPUT);
+    pinMode(def_pin_D4, OUTPUT);
+    pinMode(def_pin_PWM, OUTPUT);
+    // pinMode(def_pin_DAC1, ANALOG);
+    // pinMode(def_pin_ADC1, ANALOG);
+    pinMode(def_pin_RELE, OUTPUT);
+    pinMode(def_pin_W4a20_1, OUTPUT);
 
-        digitalWrite(def_pin_D1, LOW);
-        digitalWrite(def_pin_D2, LOW);        
-        digitalWrite(def_pin_D3, LOW);
-        digitalWrite(def_pin_D4, LOW);
-        digitalWrite(def_pin_RELE, LOW);
-        analogWrite(def_pin_PWM, 0);
-        analogWrite(def_pin_DAC1, 0);
-        analogWrite(def_pin_W4a20_1, 0);
+    rtn_1.setup(def_pin_RTN1, 50);
+    rtn_2.setup(def_pin_RTN2, 50);
+    push_1.setup(def_pin_PUSH1, 50);
+    push_2.setup(def_pin_PUSH2, 50);
 
-        if (!ads.begin()) errorMsg("ADS error.", true);
-    }
+    digitalWrite(def_pin_D1, LOW);
+    digitalWrite(def_pin_D2, LOW);        
+    digitalWrite(def_pin_D3, LOW);
+    digitalWrite(def_pin_D4, LOW);
+    digitalWrite(def_pin_RELE, LOW);
+    analogWrite(def_pin_PWM, 0);
+    analogWrite(def_pin_DAC1, 0);
+    analogWrite(def_pin_W4a20_1, 0);
+
+    if (!ads.begin()) errorMsg("ADS error.", true);
 }
 
 void IIKit_c::loop(void)

@@ -19,28 +19,37 @@ namespace wserial {
     AsyncUDP udp;
     std::function<void(std::string)> on_input;
 
-    template <typename T>
-    void sendLine(const T &txt) {
-      if (isUdpLinked) {
-        String line = String(txt); // alocação no heap aqui
-        udp.writeTo(reinterpret_cast<const uint8_t*>(line.c_str()),
-                    line.length(), lasecPlotIP, lasecPlotReceivePort);
-      } else {
-        Serial.print(txt);
-      }
+    bool isSerialConnected() {
+        static size_t last = 0;
+        size_t now = Serial.availableForWrite();
+
+        bool connected = (now != last);       // e variou desde a última leitura
+
+        last = now;
+        return connected;
     }
 
-    inline void sendLine(const char *txt, size_t len) {
+    inline void sendLineRaw(const char *txt, size_t len) {
       if (isUdpLinked) {
           udp.writeTo(reinterpret_cast<const uint8_t*>(txt),
                       len, lasecPlotIP, lasecPlotReceivePort);
-      } else {
-        // 2) Tenta Serial apenas se tiver espaço imediato
-        size_t free = Serial.availableForWrite();
-        if (free > len) {
-            Serial.write(reinterpret_cast<const uint8_t*>(txt), len);
-        }
+      } else if (isSerialConnected()) {
+        Serial.write(txt,len);
       }
+    }
+    
+    inline void sendLine(const String &s) {
+        sendLineRaw(s.c_str(), s.length());
+    }
+
+    inline void sendLine(const char *txt) {
+        sendLineRaw(txt, strlen(txt));
+    }
+
+    template <typename T>
+    inline void sendLine(const T &txt) {
+      String s(txt);
+      sendLine(s);
     }
 
     bool parseHostPort(const String &s,String &cmd, String &host, uint16_t &port) {
@@ -144,39 +153,80 @@ namespace wserial {
   template<typename T>
   void plot(const char *varName, uint32_t dt_ms, const T* y, size_t ylen, const char *unit=nullptr)
   {
-    // Estima tamanho máximo (muito seguro)
-    // varName(30) + ylen * (12 chars?) + unit(10)
-    const size_t MAX_SZ = 64 + ylen * 32;
-    char *buf = (char*)malloc(MAX_SZ);
-    if (!buf) return;
+      if (!varName || !y || ylen == 0) return;
+      static uint32_t base = 0;
+      size_t offset = 0;
+      char buf[WSR_MAX_PACKET_SIZE];  // <<< buffer FIXO, sem malloc
 
-    size_t pos = 0;
-
-    // Prefixo
-    pos += snprintf(buf + pos, MAX_SZ - pos, ">%s:", varName);
-
-    static uint32_t base = 0;
-    for (size_t i = 0; i < ylen; i++)
-    {
-        // dt (sempre decimal)
-        pos += snprintf(buf + pos, MAX_SZ - pos, "%u:", base);
-
-        // valor (convertido com precisão)
-        pos += snprintf(buf + pos, MAX_SZ - pos, "%.2f", (double)y[i]);
-
-        base += dt_ms;
-
-        if (i < ylen - 1)
-            buf[pos++] = ';';
-    }
-    if (unit)
-        pos += snprintf(buf + pos, MAX_SZ - pos, "§%s", unit);
-
-    // Sufixo final
-    pos += snprintf(buf + pos, MAX_SZ - pos, "|g" NEWLINE);
-    detail::sendLine(buf, pos);
-    free(buf);
+      while (offset < ylen) {
+          size_t chunk = ylen - offset;
+          if (chunk > WSR_MAX_POINTS_PER_PACKET) chunk = WSR_MAX_POINTS_PER_PACKET;
+          size_t pos = 0;
+          uint32_t ts0 = base + dt_ms * offset;
+          // Cabeçalho: >nome:TS0;STEP;
+          pos += snprintf(buf + pos, sizeof(buf) - pos,">%s:%u;%u;",varName, ts0, dt_ms);
+          // Valores
+          for (size_t i = 0; i < chunk; i++) {
+              pos += snprintf(buf + pos, sizeof(buf) - pos,"%.2f", (double)y[offset + i]);
+              if (i < chunk - 1) buf[pos++] = ';';
+          }
+          // Unidade opcional
+          if (unit) pos += snprintf(buf + pos, sizeof(buf) - pos, "§%s", unit);
+          // Fim
+          pos += snprintf(buf + pos, sizeof(buf) - pos, "|g\r\n");
+          // Envia
+          detail::sendLineRaw(buf, pos);
+          // Avança para próximo pedaço
+          offset += chunk;
+      }
+      // Atualiza base (primeiro timestamp do próximo lote)
+      base += dt_ms * ylen;
   }
+
+
+  // template<typename T>
+  // void plot(const char *varName, uint32_t dt_ms, const T* y, size_t ylen, const char *unit=nullptr)
+  // {
+  //     if (!varName || !y || ylen == 0) return;
+
+  //     // Tamanho seguro
+  //     const size_t MAX_SZ = 64 + ylen * 32;
+  //     char *buf = (char*)malloc(MAX_SZ);
+  //     if (!buf) return;
+
+  //     static uint32_t base = 0;
+
+  //     size_t pos = 0;
+
+  //     // Prefixo: >NOME:
+  //     pos += snprintf(buf + pos, MAX_SZ - pos, ">%s:%u;%u;", varName, base, dt_ms);
+
+  //     // Valores: VAL1;VAL2;VAL3;...
+  //     for (size_t i = 0; i < ylen; i++)
+  //     {
+  //         // escreve o valor
+  //         pos += snprintf(buf + pos, MAX_SZ - pos, "%.2f", (double)y[i]);
+
+  //         if (i < ylen - 1)
+  //             buf[pos++] = ';';
+  //     }
+
+  //     // Unidade opcional
+  //     if (unit)
+  //         pos += snprintf(buf + pos, MAX_SZ - pos, "§%s", unit);
+
+  //     // Sufixo de flags e newline
+  //     pos += snprintf(buf + pos, MAX_SZ - pos, "|g" NEWLINE);
+
+  //     // Envia
+  //     detail::sendLineRaw(buf, pos);
+
+  //     // Atualiza base (primeiro timestamp da próxima chamada)
+  //     base += dt_ms * ylen;
+
+  //     free(buf);
+  // }
+
 
   template <typename T>
   void plot(const char *varName, TickType_t x, T y, const char *unit = nullptr) 
@@ -201,7 +251,7 @@ namespace wserial {
 
     // sufixo
     pos += snprintf(buf + pos, sizeof(buf) - pos, "|g" NEWLINE);
-    detail::sendLine(buf, pos);
+    detail::sendLineRaw(buf, pos);
   }
 
   template <typename T>
