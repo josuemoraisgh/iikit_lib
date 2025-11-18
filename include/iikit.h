@@ -123,9 +123,8 @@ void IIKit_c::setup()
     /********** Inicializando Display ***********/
     if (startDisplay(&disp, def_pin_SDA, def_pin_SCL)) {
         disp.setText(1, "Inicializando...");
-        disp.setText(2, "Not Connected");
+        disp.setText(2, "WIFI not connected");
         disp.setText(3, "Starting Access Point Mode");
-        updateDisplay(&disp);
     }
     delay(50);
     /****** Inicializando WIFI ***********/
