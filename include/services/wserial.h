@@ -204,7 +204,7 @@ namespace wserial {
   //     base += dt_ms * ylen;
   // }
   template<typename T>
-  void plot16(const char* varName, uint32_t dt_ms, const T* y, size_t ylen, const char* unit=nullptr)
+  void plot(const char* varName, uint32_t dt_ms, const T* y, size_t ylen, const char* unit=nullptr)
   {
       if (!varName || !y || ylen == 0) return;
 
@@ -279,7 +279,7 @@ namespace wserial {
 
       base += dt_ms * (uint32_t)ylen;
   }
-  
+
   template <typename T>
   void plot(const char *varName, TickType_t x, T y, const char *unit = nullptr) 
   {
