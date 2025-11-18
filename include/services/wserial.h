@@ -7,7 +7,15 @@
 
 #define BAUD_RATE 115200
 #define NEWLINE "\r\n"
+// máximo de valores enviados em cada pacote UDP
+#ifndef WSR_MAX_POINTS_PER_PACKET
+#define WSR_MAX_POINTS_PER_PACKET 128
+#endif
 
+// tamanho máximo calculado do pacote
+#ifndef WSR_MAX_PACKET_SIZE
+#define WSR_MAX_PACKET_SIZE (64 + (WSR_MAX_POINTS_PER_PACKET * 32))
+#endif
 namespace wserial {
   namespace detail {
     IPAddress lasecPlotIP;
@@ -20,13 +28,21 @@ namespace wserial {
     std::function<void(std::string)> on_input;
 
     bool isSerialConnected() {
-        static size_t last = 0;
-        size_t now = Serial.availableForWrite();
+        // RX0 na ESP32 é GPIO3
+        int rx = digitalRead(3);
 
-        bool connected = (now != last);       // e variou desde a última leitura
+        // RX flutuante → sem cabo USB / sem monitor serial
+        // RX estável em HIGH ou LOW → cabo USB presente
+        static int last = rx;
+        static uint32_t lastChange = millis();
 
-        last = now;
-        return connected;
+        if (rx != last) {
+            lastChange = millis();
+            last = rx;
+        }
+
+        // Se o nível estável por 50ms, consideramos conectado
+        return (millis() - lastChange) < 50;
     }
 
     inline void sendLineRaw(const char *txt, size_t len) {
@@ -34,7 +50,7 @@ namespace wserial {
           udp.writeTo(reinterpret_cast<const uint8_t*>(txt),
                       len, lasecPlotIP, lasecPlotReceivePort);
       } else if (isSerialConnected()) {
-        Serial.write(txt,len);
+        Serial.write(reinterpret_cast<const uint8_t*>(txt),len);
       }
     }
     
