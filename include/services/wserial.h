@@ -220,14 +220,15 @@ namespace wserial {
           pos += (size_t)snprintf((char*)buf + pos, sizeof(buf) - pos, ">%s:%u;%u;", varName, ts0, dt_ms);
 
           // Espaço reservado p/ sufixo e terminadores
-          const size_t unit_len = unit ? strlen(unit) : 0;      // "§" + unit (se houver)
-          const size_t tail_len = (unit ? (1 + unit_len) : 0) + 3; // "|g\r\n"
+          const size_t unit_len = unit ? strlen(unit) : 0;              // bytes do nome da unidade
+          const size_t tail_len = (unit ? (2 + unit_len) : 0) + 3;      // "§" (2 bytes UTF-8) + unit + "|g\r\n"
+
 
           // Precisamos de 8 bytes para min/max (float32) + 2 bytes por amostra
           size_t room = (pos < sizeof(buf) && sizeof(buf) > pos + tail_len) ? (sizeof(buf) - pos - tail_len) : 0;
           if (room < 8) {                 // sem espaço nem para min/max -> envia só cabeçalho e finaliza
               buf[pos++] = '|'; buf[pos++] = 'g'; buf[pos++] = '\r'; buf[pos++] = '\n';
-              detail::sendLineRaw(buf, pos);
+              detail::sendLineRaw(reinterpret_cast<const char*>(buf), pos);
               break;
           }
 
@@ -264,7 +265,9 @@ namespace wserial {
 
           // Unidade opcional (ASCII)
           if (unit) {
-              buf[pos++] = '§';
+              // UTF-8 de '§' = 0xC2, 0xA7
+              buf[pos++] = 0xC2;
+              buf[pos++] = 0xA7;
               memcpy(buf + pos, unit, unit_len);
               pos += unit_len;
           }
@@ -273,7 +276,7 @@ namespace wserial {
           buf[pos++] = '|'; buf[pos++] = 'g'; buf[pos++] = '\r'; buf[pos++] = '\n';
 
           // Envia
-          detail::sendLineRaw(buf, pos);
+          detail::sendLineRaw(reinterpret_cast<const char*>(buf), pos);
           offset += chunk;
       }
 
