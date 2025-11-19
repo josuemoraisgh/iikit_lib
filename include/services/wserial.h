@@ -274,6 +274,8 @@ namespace wserial {
       }
 
       base += dt_ms * (uint32_t)ylen;
+      
+      if (base > 5000000u) base = 0; // 5 milhões ms = 5000s = 83 min
   }
 
   template <typename T>
