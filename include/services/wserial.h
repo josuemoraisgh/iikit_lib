@@ -13,23 +13,24 @@
 #define BAUD_RATE 115200
 #define NEWLINE "\r\n"
 
-// #ifndef WSR_MAX_PACKET_SIZE
-// #define WSR_MAX_PACKET_SIZE 1024
-// #endif
+#ifndef WSR_MAX_POINTS_PER_PACKET
+#define WSR_MAX_POINTS_PER_PACKET 1024
+#endif
+
+// // tamanho máximo calculado do pacote
+#ifndef WSR_MAX_PACKET_SIZE
+#define WSR_MAX_PACKET_SIZE 4096 
+#endif
 
 // #ifndef WSR_MAX_POINTS_PER_PACKET
-// #define WSR_MAX_POINTS_PER_PACKET 4096
+// #define WSR_MAX_POINTS_PER_PACKET 128
 // #endif
 
+// // tamanho máximo calculado do pacote
+// #ifndef WSR_MAX_PACKET_SIZE
+// #define WSR_MAX_PACKET_SIZE (64 + (WSR_MAX_POINTS_PER_PACKET * 32))
+// #endif
 
-#ifndef WSR_MAX_POINTS_PER_PACKET
-#define WSR_MAX_POINTS_PER_PACKET 128
-#endif
-
-// tamanho máximo calculado do pacote
-#ifndef WSR_MAX_PACKET_SIZE
-#define WSR_MAX_PACKET_SIZE (64 + (WSR_MAX_POINTS_PER_PACKET * 32))
-#endif
 namespace wserial {
   namespace detail {
     IPAddress lasecPlotIP;
@@ -194,85 +195,86 @@ namespace wserial {
       // Atualiza base (primeiro timestamp do próximo lote)
       base += dt_ms * ylen;
   }
-  // template<typename T>
-  // void plot(const char* varName, uint32_t dt_ms, const T* y, size_t ylen, const char* unit=nullptr)
-  // {
-  //     if (!varName || !y || ylen == 0) return;
 
-  //     static uint32_t base = 0;
-  //     size_t offset = 0;
-  //     alignas(4) unsigned char buf[WSR_MAX_PACKET_SIZE];
+  template<typename T>
+  void plotRaw(const char* varName, uint32_t dt_ms, const T* y, size_t ylen, const char* unit=nullptr)
+  {
+      if (!varName || !y || ylen == 0) return;
 
-  //     while (offset < ylen) {
-  //         uint32_t ts0 = base + dt_ms * (uint32_t)offset;
-  //         size_t pos = 0;
+      static uint32_t base = 0;
+      size_t offset = 0;
+      alignas(4) unsigned char buf[WSR_MAX_PACKET_SIZE];
 
-  //         // Cabeçalho ASCII: >nome:TS0;STEP;
-  //         pos += (size_t)snprintf((char*)buf + pos, sizeof(buf) - pos, ">%s:%u;%u;", varName, ts0, dt_ms);
+      while (offset < ylen) {
+          uint32_t ts0 = base + dt_ms * (uint32_t)offset;
+          size_t pos = 0;
 
-  //         // Espaço reservado p/ sufixo e terminadores
-  //         const size_t unit_len = unit ? strlen(unit) : 0;              // bytes do nome da unidade
-  //         const size_t tail_len = (unit ? (2 + unit_len) : 0) + 3;      // "§" (2 bytes UTF-8) + unit + "|g\r\n"
+          // Cabeçalho ASCII: >nome:TS0;STEP;
+          pos += (size_t)snprintf((char*)buf + pos, sizeof(buf) - pos, ">%s:%u;%u;", varName, ts0, dt_ms);
+
+          // Espaço reservado p/ sufixo e terminadores
+          const size_t unit_len = unit ? strlen(unit) : 0;              // bytes do nome da unidade
+          const size_t tail_len = (unit ? (2 + unit_len) : 0) + 3;      // "§" (2 bytes UTF-8) + unit + "|g\r\n"
 
 
-  //         // Precisamos de 8 bytes para min/max (float32) + 2 bytes por amostra
-  //         size_t room = (pos < sizeof(buf) && sizeof(buf) > pos + tail_len) ? (sizeof(buf) - pos - tail_len) : 0;
-  //         if (room < 8) {                 // sem espaço nem para min/max -> envia só cabeçalho e finaliza
-  //             buf[pos++] = '|'; buf[pos++] = 'g'; buf[pos++] = '\r'; buf[pos++] = '\n';
-  //             detail::sendLineRaw(reinterpret_cast<const char*>(buf), pos);
-  //             break;
-  //         }
+          // Precisamos de 8 bytes para min/max (float32) + 2 bytes por amostra
+          size_t room = (pos < sizeof(buf) && sizeof(buf) > pos + tail_len) ? (sizeof(buf) - pos - tail_len) : 0;
+          if (room < 8) {                 // sem espaço nem para min/max -> envia só cabeçalho e finaliza
+              buf[pos++] = '|'; buf[pos++] = 'g'; buf[pos++] = '\r'; buf[pos++] = '\n';
+              detail::sendLineRaw(reinterpret_cast<const char*>(buf), pos);
+              break;
+          }
 
-  //         size_t chunk = ylen - offset;
-  //         size_t max_by_buf = (room - 8) / 2;                    // 2 bytes por ponto após min/max
-  //         if (chunk > WSR_MAX_POINTS_PER_PACKET) chunk = WSR_MAX_POINTS_PER_PACKET;
-  //         if (chunk > max_by_buf)               chunk = max_by_buf;
-  //         if (chunk == 0) break;
+          size_t chunk = ylen - offset;
+          size_t max_by_buf = (room - 8) / 2;                    // 2 bytes por ponto após min/max
+          if (chunk > WSR_MAX_POINTS_PER_PACKET) chunk = WSR_MAX_POINTS_PER_PACKET;
+          if (chunk > max_by_buf)               chunk = max_by_buf;
+          if (chunk == 0) break;
 
-  //         // Calcula min/max do pedaço
-  //         float mn = (float)y[offset];
-  //         float mx = mn;
-  //         for (size_t i = 1; i < chunk; ++i) {
-  //             float v = (float)y[offset + i];
-  //             if (v < mn) mn = v;
-  //             if (v > mx) mx = v;
-  //         }
-  //         if (!(mx > mn)) mx = mn + 1e-12f; // evita divisão por zero
+          // Calcula min/max do pedaço
+          float mn = (float)y[offset];
+          float mx = mn;
+          for (size_t i = 1; i < chunk; ++i) {
+              float v = (float)y[offset + i];
+              if (v < mn) mn = v;
+              if (v > mx) mx = v;
+          }
+          if (!(mx > mn)) mx = mn + 1e-12f; // evita divisão por zero
 
-  //         // Anexa min e max como IEEE-754 float32 (binário)
-  //         memcpy(buf + pos, &mn, 4); pos += 4;
-  //         memcpy(buf + pos, &mx, 4); pos += 4;
+          // Anexa min e max como IEEE-754 float32 (binário)
+          memcpy(buf + pos, &mn, 4); pos += 4;
+          memcpy(buf + pos, &mx, 4); pos += 4;
 
-  //         // Quantiza e escreve os 16 bits (binário, little-endian do host)
-  //         const float scale = 65535.0f / (mx - mn);
-  //         for (size_t i = 0; i < chunk; ++i) {
-  //             float v = (float)y[offset + i];
-  //             uint32_t q = (uint32_t)lrintf((v - mn) * scale);
-  //             if (q > 65535u) q = 65535u;
-  //             uint16_t u16 = (uint16_t)q;
-  //             memcpy(buf + pos, &u16, 2);
-  //             pos += 2;
-  //         }
+          // Quantiza e escreve os 16 bits (binário, little-endian do host)
+          const float scale = 65535.0f / (mx - mn);
+          for (size_t i = 0; i < chunk; ++i) {
+              float v = (float)y[offset + i];
+              uint32_t q = (uint32_t)lrintf((v - mn) * scale);
+              if (q > 65535u) q = 65535u;
+              uint16_t u16 = (uint16_t)q;
+              memcpy(buf + pos, &u16, 2);
+              pos += 2;
+          }
 
-  //         // Unidade opcional (ASCII)
-  //         if (unit) {
-  //             // UTF-8 de '§' = 0xC2, 0xA7
-  //             buf[pos++] = 0xC2;
-  //             buf[pos++] = 0xA7;
-  //             memcpy(buf + pos, unit, unit_len);
-  //             pos += unit_len;
-  //         }
+          // Unidade opcional (ASCII)
+          if (unit) {
+              // UTF-8 de '§' = 0xC2, 0xA7
+              buf[pos++] = 0xC2;
+              buf[pos++] = 0xA7;
+              memcpy(buf + pos, unit, unit_len);
+              pos += unit_len;
+          }
 
-  //         // Final
-  //         buf[pos++] = '|'; buf[pos++] = 'g'; buf[pos++] = '\r'; buf[pos++] = '\n';
+          // Final
+          buf[pos++] = '|'; buf[pos++] = 'g'; buf[pos++] = '\r'; buf[pos++] = '\n';
 
-  //         // Envia
-  //         detail::sendLineRaw(reinterpret_cast<const char*>(buf), pos);
-  //         offset += chunk;
-  //     }
+          // Envia
+          detail::sendLineRaw(reinterpret_cast<const char*>(buf), pos);
+          offset += chunk;
+      }
 
-  //     base += dt_ms * (uint32_t)ylen;
-  // }
+      base += dt_ms * (uint32_t)ylen;
+  }
 
   template <typename T>
   void plot(const char *varName, TickType_t x, T y, const char *unit = nullptr) 
